@@ -1,0 +1,2603 @@
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local Stats = game:GetService("Stats")
+local LocalizationService = game:GetService("LocalizationService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local SoundService = game:GetService("SoundService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- ==========================================
+-- CONFIGURAÇÕES GERAIS (100 IDEIAS INTEGRADAS)
+-- ==========================================
+local HubConfig = {
+	Notifications = true,
+	Transparent = true,
+	CompactWindow = false,
+	SelectedPlayer = "",
+	SavedSpot = nil,
+}
+
+local ESPConfig = {
+	MasterEnabled = true,
+	OnlyAlive = true,
+	Box2D = false,
+	Box3D = false,
+	CornerBox = false,
+	Skeleton = false,
+	LineEnabled = false,
+	LineOrigin = "Embaixo", -- "Embaixo" ou "Em cima"
+	LineColor = Color3.fromRGB(160, 90, 255),
+	HealthBar = false,
+	HealthText = false,
+	Name = false,
+	UseDisplayName = true,
+	Distance = false,
+	Tool = false,
+	Highlight = false,
+	TeamCheck = false,
+	FriendHighlight = true,
+	FriendColor = Color3.fromRGB(80, 220, 255),
+	TargetIndicator = true,
+	TargetColor = Color3.fromRGB(255, 70, 90),
+	OutOfFOVArrows = false,
+	MaxDistance = 1500,
+	TextSize = 14,
+	Thickness = 1.5,
+	Color = Color3.fromRGB(160, 90, 255),
+}
+
+local AimbotConfig = {
+	Enabled = false,
+	TeamCheck = false,
+	WallCheck = false,
+	TargetSpot = "Cabeça", -- "Cabeça", "Pescoço", "Torso", "Perna", "Braços"
+	Smoothness = 0.25,
+	MaxDistance = 600,
+	Priority = "FOV", -- "FOV" ou "Distancia"
+	Prediction = 0,
+	StickyTarget = true,
+	FloatingButton = false,
+	DisableOnTouch = false,
+	FOVEnabled = false,
+	FOVOnlyWhenAiming = false,
+	FOVDynamicZoom = false,
+	FOVRadius = 120,
+	FOVThickness = 1.8,
+	FOVNumSides = 64,
+	FOVColor = Color3.fromRGB(0, 210, 255),
+}
+
+local MoveConfig = {
+	WalkSpeedEnabled = false,
+	WalkSpeed = 16,
+	WalkSpeedLoop = true,
+	JumpPowerEnabled = false,
+	JumpPower = 50,
+	InfiniteJump = false,
+	NoClip = false,
+	FlyEnabled = false,
+	FlySpeed = 55,
+	AntiAFK = true,
+	AntiRagdoll = false,
+	Spectating = false,
+	Spinbot = false,
+	SpinSpeed = 14,
+	CameraFOV = 70,
+	Shiftlock = false,
+	AutoSprint = false,
+	Gravity = 196.2,
+}
+
+local FPSConfig = {
+	BoostEnabled = false,
+	NoShadows = false,
+	NoParticles = false,
+	PlasticMode = false,
+	NoDecals = false,
+	UltraLightMobile = false,
+	FPSCap = 60,
+	CounterVisible = false,
+	ShowPing = true,
+	ShowMemory = true,
+	DynamicColor = true,
+	CompactCounter = false,
+}
+
+local WorldConfig = {
+	Fullbright = false,
+	NoFog = false,
+	MuteAudio = false,
+	AutoSkipPopups = false,
+}
+
+local CountryFlags = {
+	BR = { Name = "Brasil", Flag = "🇧🇷" },
+	US = { Name = "Estados Unidos", Flag = "🇺🇸" },
+	DE = { Name = "Alemanha", Flag = "🇩🇪" },
+	GB = { Name = "Reino Unido", Flag = "🇬🇧" },
+	FR = { Name = "França", Flag = "🇫🇷" },
+	NL = { Name = "Países Baixos", Flag = "🇳🇱" },
+	SG = { Name = "Singapura", Flag = "🇸🇬" },
+	JP = { Name = "Japão", Flag = "🇯🇵" },
+	KR = { Name = "Coreia do Sul", Flag = "🇰🇷" },
+	AU = { Name = "Austrália", Flag = "🇦🇺" },
+	CA = { Name = "Canadá", Flag = "🇨🇦" },
+	AR = { Name = "Argentina", Flag = "🇦🇷" },
+	CL = { Name = "Chile", Flag = "🇨🇱" },
+	MX = { Name = "México", Flag = "🇲🇽" },
+	PT = { Name = "Portugal", Flag = "🇵🇹" },
+	ES = { Name = "Espanha", Flag = "🇪🇸" },
+	IT = { Name = "Itália", Flag = "🇮🇹" },
+	PL = { Name = "Polônia", Flag = "🇵🇱" },
+	IN = { Name = "Índia", Flag = "🇮🇳" },
+}
+
+local function notifyHub(title, content, duration)
+	if not HubConfig.Notifications then
+		return
+	end
+	pcall(function()
+		WindUI:Notify({
+			Title = title or "RYKO HUB",
+			Content = content or "",
+			Duration = duration or 3,
+		})
+	end)
+end
+
+local function copyToClipboard(text)
+	local ok = false
+	pcall(function()
+		if type(setclipboard) == "function" then
+			setclipboard(tostring(text))
+			ok = true
+		elseif type(toclipboard) == "function" then
+			toclipboard(tostring(text))
+			ok = true
+		end
+	end)
+	return ok
+end
+
+-- ==========================================
+-- REDE, REGIÃO, FPS, MEMÓRIA E BOOST
+-- ==========================================
+local function getPingMs()
+	local pingMs = 0
+	pcall(function()
+		local net = Stats and Stats:FindFirstChild("Network")
+		local serverStats = net and net:FindFirstChild("ServerStatsItem")
+		local dataPing = serverStats and serverStats:FindFirstChild("Data Ping")
+		if dataPing and type(dataPing.GetValue) == "function" then
+			pingMs = math.floor(dataPing:GetValue() + 0.5)
+		end
+	end)
+	if pingMs <= 0 then
+		pcall(function()
+			if type(LocalPlayer.GetNetworkPing) == "function" then
+				pingMs = math.floor((LocalPlayer:GetNetworkPing() * 1000) + 0.5)
+			end
+		end)
+	end
+	if pingMs < 0 then
+		pingMs = 0
+	end
+	return pingMs
+end
+
+local function getMemoryMB()
+	local mem = 0
+	pcall(function()
+		mem = math.floor(Stats:GetTotalMemoryUsageMb() + 0.5)
+	end)
+	return mem
+end
+
+local function detectServerRegion()
+	local currentPing = getPingMs()
+	local regionCode = nil
+	pcall(function()
+		local code = LocalizationService:GetCountryRegionForPlayerAsync(LocalPlayer)
+		if type(code) == "string" and #code >= 2 then
+			regionCode = string.upper(string.sub(code, 1, 2))
+		end
+	end)
+	local estimated = false
+	if not regionCode or not CountryFlags[regionCode] then
+		estimated = true
+		if currentPing > 0 and currentPing <= 55 then
+			regionCode = "BR"
+		elseif currentPing > 0 and currentPing <= 185 then
+			regionCode = "US"
+		elseif currentPing > 0 and currentPing <= 275 then
+			regionCode = "DE"
+		elseif currentPing > 275 then
+			regionCode = "SG"
+		else
+			regionCode = "BR"
+		end
+	end
+	local info = CountryFlags[regionCode] or { Name = regionCode, Flag = "🌍" }
+	return {
+		Code = regionCode,
+		Name = info.Name,
+		Flag = info.Flag,
+		Ping = currentPing,
+		Estimated = estimated,
+	}
+end
+
+local SavedLighting = {
+	GlobalShadows = Lighting.GlobalShadows,
+	FogEnd = Lighting.FogEnd,
+	FogStart = Lighting.FogStart,
+	Brightness = Lighting.Brightness,
+	Ambient = Lighting.Ambient,
+	OutdoorAmbient = Lighting.OutdoorAmbient,
+	ClockTime = Lighting.ClockTime,
+}
+
+local function applyShadowsState(disableShadows)
+	pcall(function()
+		Lighting.GlobalShadows = not disableShadows
+	end)
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		pcall(function()
+			if obj:IsA("BasePart") then
+				obj.CastShadow = not disableShadows
+			end
+		end)
+	end
+end
+
+local function applyParticlesState(disableParticles)
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		pcall(function()
+			if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Beam") then
+				obj.Enabled = not disableParticles
+			end
+		end)
+	end
+end
+
+local function applyPlasticState(plastic)
+	if not plastic then
+		return
+	end
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		pcall(function()
+			if obj:IsA("BasePart") then
+				obj.Material = Enum.Material.Plastic
+			end
+		end)
+	end
+end
+
+local function applyDecalsState(hideDecals)
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		pcall(function()
+			if obj:IsA("Decal") or obj:IsA("Texture") then
+				obj.Transparency = hideDecals and 1 or 0
+			end
+		end)
+	end
+end
+
+local function applyFPSBoost(enabled)
+	FPSConfig.BoostEnabled = enabled
+	pcall(function()
+		settings().Rendering.QualityLevel = enabled and Enum.QualityLevel.Level01 or Enum.QualityLevel.Automatic
+	end)
+	if enabled then
+		pcall(function()
+			Lighting.GlobalShadows = false
+			Lighting.FogEnd = 100000
+		end)
+		for _, v in ipairs(Lighting:GetChildren()) do
+			pcall(function()
+				if v:IsA("PostEffect") or v:IsA("Atmosphere") then
+					v.Enabled = false
+				end
+			end)
+		end
+		applyShadowsState(true)
+		applyParticlesState(true)
+		applyPlasticState(true)
+		applyDecalsState(true)
+	else
+		pcall(function()
+			Lighting.GlobalShadows = SavedLighting.GlobalShadows
+			Lighting.FogEnd = SavedLighting.FogEnd
+			Lighting.Brightness = SavedLighting.Brightness
+		end)
+		for _, v in ipairs(Lighting:GetChildren()) do
+			pcall(function()
+				if v:IsA("PostEffect") or v:IsA("Atmosphere") then
+					v.Enabled = true
+				end
+			end)
+		end
+		if not FPSConfig.NoShadows then
+			applyShadowsState(false)
+		end
+		if not FPSConfig.NoParticles then
+			applyParticlesState(false)
+		end
+		if not FPSConfig.NoDecals then
+			applyDecalsState(false)
+		end
+	end
+end
+
+local function applyFPSCap(cap)
+	pcall(function()
+		if type(setfpscap) == "function" then
+			setfpscap(cap)
+		end
+	end)
+end
+
+-- ==========================================
+-- GUIS FLUTUANTES (FPS/PING/MEM + BOTÃO AIMBOT)
+-- ==========================================
+local function attachGuiParent(gui)
+	local ok = pcall(function()
+		if type(gethui) == "function" then
+			gui.Parent = gethui()
+		else
+			gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+		end
+	end)
+	if not ok or not gui.Parent then
+		gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+	end
+end
+
+local function makeDraggable(frame)
+	local dragging = false
+	local dragInput = nil
+	local dragStart = nil
+	local startPos = nil
+
+	frame.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			dragStart = input.Position
+			startPos = frame.Position
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	frame.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
+			dragInput = input
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+end
+
+local FPSGui = Instance.new("ScreenGui")
+FPSGui.Name = "RYKO_HUB_FPS_Overlay"
+FPSGui.ResetOnSpawn = false
+FPSGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+attachGuiParent(FPSGui)
+
+local DEFAULT_FPS_POS = UDim2.new(0.02, 0, 0.14, 0)
+
+local FPSFrame = Instance.new("Frame")
+FPSFrame.Name = "FPSOverlayFrame"
+FPSFrame.Size = UDim2.fromOffset(238, 44)
+FPSFrame.Position = DEFAULT_FPS_POS
+FPSFrame.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
+FPSFrame.BackgroundTransparency = 0.12
+FPSFrame.BorderSizePixel = 0
+FPSFrame.Active = true
+FPSFrame.Visible = false
+FPSFrame.Parent = FPSGui
+
+local FPSCorner = Instance.new("UICorner")
+FPSCorner.CornerRadius = UDim.new(0, 10)
+FPSCorner.Parent = FPSFrame
+
+local FPSStroke = Instance.new("UIStroke")
+FPSStroke.Color = Color3.fromRGB(160, 90, 255)
+FPSStroke.Thickness = 1.4
+FPSStroke.Parent = FPSFrame
+
+local FPSLabel = Instance.new("TextLabel")
+FPSLabel.Size = UDim2.fromScale(1, 1)
+FPSLabel.BackgroundTransparency = 1
+FPSLabel.Font = Enum.Font.GothamBold
+FPSLabel.TextSize = 13
+FPSLabel.TextColor3 = Color3.fromRGB(240, 240, 255)
+FPSLabel.Text = "FPS: -- | Ping: --ms"
+FPSLabel.Parent = FPSFrame
+
+makeDraggable(FPSFrame)
+
+local function updateFPSFrameLayout()
+	if FPSConfig.CompactCounter then
+		FPSFrame.Size = UDim2.fromOffset(145, 34)
+		FPSLabel.TextSize = 11
+	else
+		FPSFrame.Size = FPSConfig.ShowMemory and UDim2.fromOffset(238, 44) or UDim2.fromOffset(186, 44)
+		FPSLabel.TextSize = 13
+	end
+end
+
+-- Botão flutuante de Aimbot no Mobile
+local AimBtnGui = Instance.new("ScreenGui")
+AimBtnGui.Name = "RYKO_HUB_Aimbot_Button"
+AimBtnGui.ResetOnSpawn = false
+AimBtnGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+attachGuiParent(AimBtnGui)
+
+local AimBtn = Instance.new("TextButton")
+AimBtn.Name = "AimbotQuickToggle"
+AimBtn.Size = UDim2.fromOffset(124, 42)
+AimBtn.Position = UDim2.new(0.75, 0, 0.22, 0)
+AimBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+AimBtn.BackgroundTransparency = 0.1
+AimBtn.BorderSizePixel = 0
+AimBtn.Font = Enum.Font.GothamBold
+AimBtn.TextSize = 13
+AimBtn.TextColor3 = Color3.fromRGB(240, 240, 255)
+AimBtn.Text = "AIMBOT: OFF"
+AimBtn.Visible = false
+AimBtn.Parent = AimBtnGui
+
+local AimBtnCorner = Instance.new("UICorner")
+AimBtnCorner.CornerRadius = UDim.new(0, 10)
+AimBtnCorner.Parent = AimBtn
+
+local AimBtnStroke = Instance.new("UIStroke")
+AimBtnStroke.Color = Color3.fromRGB(0, 210, 255)
+AimBtnStroke.Thickness = 1.4
+AimBtnStroke.Parent = AimBtn
+
+makeDraggable(AimBtn)
+
+local UIRefs = {}
+
+local function syncAimbotButtonText()
+	AimBtn.Text = AimbotConfig.Enabled and "AIMBOT: ON" or "AIMBOT: OFF"
+	AimBtnStroke.Color = AimbotConfig.Enabled and Color3.fromRGB(90, 255, 140) or Color3.fromRGB(0, 210, 255)
+end
+
+-- ==========================================
+-- JANELA WINDUI
+-- ==========================================
+local Window = WindUI:CreateWindow({
+	Title = "RYKO HUB | 100 Features",
+	Icon = "eye",
+	Author = "RYKO HUB",
+	Folder = "RYKO_HUB_WINDUI",
+	Size = UDim2.fromOffset(510, 415),
+	Transparent = true,
+	Theme = "Dark",
+	SideBarWidth = 150,
+})
+
+AimBtn.MouseButton1Click:Connect(function()
+	AimbotConfig.Enabled = not AimbotConfig.Enabled
+	syncAimbotButtonText()
+	if UIRefs.AimbotEnabled and type(UIRefs.AimbotEnabled.Set) == "function" then
+		pcall(function()
+			UIRefs.AimbotEnabled:Set(AimbotConfig.Enabled)
+		end)
+	end
+end)
+
+-- ==========================================
+-- ABA 1: ESP
+-- ==========================================
+local ESPTab = Window:Tab({ Title = "ESP", Icon = "scan" })
+
+UIRefs.ESPMaster = ESPTab:Toggle({
+	Title = "ESP Geral (Master)",
+	Desc = "Liga ou desliga todos os recursos de ESP",
+	Value = ESPConfig.MasterEnabled,
+	Callback = function(v) ESPConfig.MasterEnabled = v end,
+})
+
+UIRefs.ESPOnlyAlive = ESPTab:Toggle({
+	Title = "Apenas Vivos",
+	Desc = "Esconde ESP de jogadores eliminados/mortos",
+	Value = ESPConfig.OnlyAlive,
+	Callback = function(v) ESPConfig.OnlyAlive = v end,
+})
+
+UIRefs.ESPBox2D = ESPTab:Toggle({
+	Title = "ESP Box 2D",
+	Desc = "Caixa 2D clássica ao redor dos jogadores",
+	Value = false,
+	Callback = function(v) ESPConfig.Box2D = v end,
+})
+
+UIRefs.ESPBox3D = ESPTab:Toggle({
+	Title = "ESP Box 3D",
+	Desc = "Caixa tridimensional em volta do corpo",
+	Value = false,
+	Callback = function(v) ESPConfig.Box3D = v end,
+})
+
+UIRefs.ESPCornerBox = ESPTab:Toggle({
+	Title = "ESP Corner Box",
+	Desc = "Caixa apenas nos cantos (visual limpo)",
+	Value = false,
+	Callback = function(v) ESPConfig.CornerBox = v end,
+})
+
+UIRefs.ESPSkeleton = ESPTab:Toggle({
+	Title = "ESP Skeleton (R6 / R15)",
+	Desc = "Mostra ossos e juntas do personagem",
+	Value = false,
+	Callback = function(v) ESPConfig.Skeleton = v end,
+})
+
+UIRefs.ESPHealthBar = ESPTab:Toggle({
+	Title = "ESP Health Bar",
+	Desc = "Barra lateral colorida de vida",
+	Value = false,
+	Callback = function(v) ESPConfig.HealthBar = v end,
+})
+
+UIRefs.ESPHealthText = ESPTab:Toggle({
+	Title = "ESP Health Texto",
+	Desc = "Mostra HP exato (ex: 100/100)",
+	Value = false,
+	Callback = function(v) ESPConfig.HealthText = v end,
+})
+
+UIRefs.ESPName = ESPTab:Toggle({
+	Title = "ESP Name",
+	Desc = "Exibe nome dos jogadores",
+	Value = false,
+	Callback = function(v) ESPConfig.Name = v end,
+})
+
+UIRefs.ESPUseDisplay = ESPTab:Toggle({
+	Title = "Usar DisplayName",
+	Desc = "Mostra nome de exibição ao invés do @usuario",
+	Value = ESPConfig.UseDisplayName,
+	Callback = function(v) ESPConfig.UseDisplayName = v end,
+})
+
+UIRefs.ESPDistance = ESPTab:Toggle({
+	Title = "ESP Distance",
+	Desc = "Exibe distância em studs/metros",
+	Value = false,
+	Callback = function(v) ESPConfig.Distance = v end,
+})
+
+UIRefs.ESPTool = ESPTab:Toggle({
+	Title = "ESP Tool / Arma",
+	Desc = "Exibe o item/arma equipada na mão",
+	Value = false,
+	Callback = function(v) ESPConfig.Tool = v end,
+})
+
+UIRefs.ESPHighlight = ESPTab:Toggle({
+	Title = "ESP Highlight / Chams",
+	Desc = "Realça o personagem em 3D",
+	Value = false,
+	Callback = function(v) ESPConfig.Highlight = v end,
+})
+
+UIRefs.ESPTeamCheck = ESPTab:Toggle({
+	Title = "ESP Team Check",
+	Desc = "Esconde ESP de aliados do mesmo time",
+	Value = false,
+	Callback = function(v) ESPConfig.TeamCheck = v end,
+})
+
+UIRefs.ESPFriendHighlight = ESPTab:Toggle({
+	Title = "Destacar Amigos",
+	Desc = "Usa cor especial para amigos da sua lista",
+	Value = ESPConfig.FriendHighlight,
+	Callback = function(v) ESPConfig.FriendHighlight = v end,
+})
+
+UIRefs.ESPTargetInd = ESPTab:Toggle({
+	Title = "Indicador de Alvo (Aimbot)",
+	Desc = "Destaca o alvo travado pela mira",
+	Value = ESPConfig.TargetIndicator,
+	Callback = function(v) ESPConfig.TargetIndicator = v end,
+})
+
+UIRefs.ESPArrows = ESPTab:Toggle({
+	Title = "Setas Fora do FOV",
+	Desc = "Aponta jogadores fora do seu campo de visão",
+	Value = false,
+	Callback = function(v) ESPConfig.OutOfFOVArrows = v end,
+})
+
+UIRefs.ESPMaxDist = ESPTab:Slider({
+	Title = "Distância Máxima do ESP",
+	Desc = "Alcance máximo de desenho (studs)",
+	Value = { Min = 100, Max = 3000, Default = ESPConfig.MaxDistance },
+	Callback = function(v) ESPConfig.MaxDistance = v end,
+})
+
+UIRefs.ESPTextSize = ESPTab:Slider({
+	Title = "Tamanho do Texto ESP",
+	Desc = "Ajuste de tamanho de fonte",
+	Value = { Min = 10, Max = 24, Default = ESPConfig.TextSize },
+	Callback = function(v) ESPConfig.TextSize = v end,
+})
+
+UIRefs.ESPThickness = ESPTab:Slider({
+	Title = "Espessura das Linhas ESP",
+	Desc = "Grossura de Box, Skeleton e Setas",
+	Value = { Min = 1, Max = 5, Default = 1.5 },
+	Callback = function(v) ESPConfig.Thickness = v end,
+})
+
+UIRefs.ESPColor = ESPTab:Colorpicker({
+	Title = "Cor Principal dos ESPs",
+	Desc = "Cor para Box, Skeleton, Name e afins",
+	Default = ESPConfig.Color,
+	Callback = function(v) ESPConfig.Color = v end,
+})
+
+UIRefs.FriendColor = ESPTab:Colorpicker({
+	Title = "Cor de Amigos",
+	Desc = "Cor de destaque para amigos",
+	Default = ESPConfig.FriendColor,
+	Callback = function(v) ESPConfig.FriendColor = v end,
+})
+
+UIRefs.TargetColor = ESPTab:Colorpicker({
+	Title = "Cor do Alvo Travado",
+	Desc = "Cor de destaque do alvo atual",
+	Default = ESPConfig.TargetColor,
+	Callback = function(v) ESPConfig.TargetColor = v end,
+})
+
+-- ==========================================
+-- ABA 2: ESP LINE (DEDICADA)
+-- ==========================================
+local LineTab = Window:Tab({ Title = "ESP Line", Icon = "git-commit-horizontal" })
+
+UIRefs.LineEnabled = LineTab:Toggle({
+	Title = "ESP Line",
+	Desc = "Ativa ou desativa a linha até os jogadores",
+	Value = false,
+	Callback = function(v) ESPConfig.LineEnabled = v end,
+})
+
+UIRefs.LineOrigin = LineTab:Dropdown({
+	Title = "Posição do ESP Line",
+	Desc = "Escolha se a linha sai de baixo ou de cima da tela",
+	Values = { "Embaixo", "Em cima" },
+	Value = ESPConfig.LineOrigin,
+	Callback = function(v) ESPConfig.LineOrigin = v end,
+})
+
+UIRefs.LineColor = LineTab:Colorpicker({
+	Title = "Cor do ESP Line",
+	Desc = "Paleta própria da linha",
+	Default = ESPConfig.LineColor,
+	Callback = function(v) ESPConfig.LineColor = v end,
+})
+
+-- ==========================================
+-- ABA 3: AIMBOT & FOV
+-- ==========================================
+local AimTab = Window:Tab({ Title = "Aimbot", Icon = "crosshair" })
+
+UIRefs.AimbotEnabled = AimTab:Toggle({
+	Title = "Ativar Aimbot",
+	Desc = "Puxa a mira da câmera para o alvo",
+	Value = false,
+	Callback = function(v)
+		AimbotConfig.Enabled = v
+		syncAimbotButtonText()
+	end,
+})
+
+UIRefs.AimFloatingBtn = AimTab:Toggle({
+	Title = "Botão Flutuante (Mobile)",
+	Desc = "Cria botão arrastável de ligar/desligar Aimbot",
+	Value = false,
+	Callback = function(v)
+		AimbotConfig.FloatingButton = v
+		AimBtn.Visible = v
+	end,
+})
+
+UIRefs.AimTeamCheck = AimTab:Toggle({
+	Title = "Team Check",
+	Desc = "Ignora jogadores do mesmo time",
+	Value = false,
+	Callback = function(v) AimbotConfig.TeamCheck = v end,
+})
+
+UIRefs.AimWallCheck = AimTab:Toggle({
+	Title = "Wall Check",
+	Desc = "Só puxa em alvos visíveis (sem parede na frente)",
+	Value = false,
+	Callback = function(v) AimbotConfig.WallCheck = v end,
+})
+
+UIRefs.AimSticky = AimTab:Toggle({
+	Title = "Sticky Target",
+	Desc = "Mantém foco no alvo atual enquanto válido",
+	Value = AimbotConfig.StickyTarget,
+	Callback = function(v) AimbotConfig.StickyTarget = v end,
+})
+
+UIRefs.AimDisableTouch = AimTab:Toggle({
+	Title = "Pausar ao Tocar Fora do Alvo",
+	Desc = "Evita puxar durante gesto de câmera no toque",
+	Value = false,
+	Callback = function(v) AimbotConfig.DisableOnTouch = v end,
+})
+
+UIRefs.AimSpot = AimTab:Dropdown({
+	Title = "Onde a Mira Gruda",
+	Values = { "Cabeça", "Pescoço", "Torso", "Perna", "Braços" },
+	Value = AimbotConfig.TargetSpot,
+	Callback = function(v) AimbotConfig.TargetSpot = v end,
+})
+
+UIRefs.AimPriority = AimTab:Dropdown({
+	Title = "Prioridade do Alvo",
+	Values = { "FOV", "Distancia" },
+	Value = AimbotConfig.Priority,
+	Callback = function(v) AimbotConfig.Priority = v end,
+})
+
+UIRefs.AimSmooth = AimTab:Slider({
+	Title = "Suavidade da Mira",
+	Desc = "Menor = mais suave; 100 = puxa na hora",
+	Value = { Min = 5, Max = 100, Default = 25 },
+	Callback = function(v) AimbotConfig.Smoothness = v / 100 end,
+})
+
+UIRefs.AimPrediction = AimTab:Slider({
+	Title = "Prediction (Antecipação)",
+	Desc = "Compensa movimento rápido do alvo",
+	Value = { Min = 0, Max = 30, Default = 0 },
+	Callback = function(v) AimbotConfig.Prediction = v / 100 end,
+})
+
+UIRefs.AimMaxDist = AimTab:Slider({
+	Title = "Distância Máxima do Aimbot",
+	Desc = "Alcance máximo em studs",
+	Value = { Min = 50, Max = 1500, Default = AimbotConfig.MaxDistance },
+	Callback = function(v) AimbotConfig.MaxDistance = v end,
+})
+
+UIRefs.FOVEnabled = AimTab:Toggle({
+	Title = "Habilitar FOV",
+	Desc = "Mostra o círculo de FOV e limita a mira dentro dele",
+	Value = false,
+	Callback = function(v) AimbotConfig.FOVEnabled = v end,
+})
+
+UIRefs.FOVOnlyAim = AimTab:Toggle({
+	Title = "FOV Só Com Aimbot Ligado",
+	Desc = "Esconde o círculo quando Aimbot está desligado",
+	Value = false,
+	Callback = function(v) AimbotConfig.FOVOnlyWhenAiming = v end,
+})
+
+UIRefs.FOVZoom = AimTab:Toggle({
+	Title = "FOV Dinâmico por Zoom",
+	Desc = "Ajusta o raio conforme o zoom da câmera",
+	Value = false,
+	Callback = function(v) AimbotConfig.FOVDynamicZoom = v end,
+})
+
+UIRefs.FOVRadius = AimTab:Slider({
+	Title = "Tamanho do FOV",
+	Desc = "Raio do círculo na tela em pixels",
+	Value = { Min = 30, Max = 350, Default = AimbotConfig.FOVRadius },
+	Callback = function(v) AimbotConfig.FOVRadius = v end,
+})
+
+UIRefs.FOVThick = AimTab:Slider({
+	Title = "Espessura do Círculo FOV",
+	Desc = "Grossura da borda do FOV",
+	Value = { Min = 1, Max = 5, Default = 2 },
+	Callback = function(v) AimbotConfig.FOVThickness = v end,
+})
+
+UIRefs.FOVSides = AimTab:Slider({
+	Title = "Suavidade do Círculo FOV",
+	Desc = "Quantidade de lados do círculo",
+	Value = { Min = 20, Max = 100, Default = AimbotConfig.FOVNumSides },
+	Callback = function(v) AimbotConfig.FOVNumSides = v end,
+})
+
+UIRefs.FOVColor = AimTab:Colorpicker({
+	Title = "Cor do FOV",
+	Desc = "Paleta própria do círculo de FOV",
+	Default = AimbotConfig.FOVColor,
+	Callback = function(v) AimbotConfig.FOVColor = v end,
+})
+
+-- ==========================================
+-- ABA 4: MOVIMENTO & PERSONAGEM
+-- ==========================================
+local MoveTab = Window:Tab({ Title = "Movimento", Icon = "zap" })
+
+local function getHumanoid()
+	local char = LocalPlayer.Character
+	return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function getRootPart()
+	local char = LocalPlayer.Character
+	return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+UIRefs.WalkSpeedEn = MoveTab:Toggle({
+	Title = "WalkSpeed Toggle",
+	Desc = "Altera a velocidade de caminhada",
+	Value = false,
+	Callback = function(v) MoveConfig.WalkSpeedEnabled = v end,
+})
+
+UIRefs.WalkSpeedVal = MoveTab:Slider({
+	Title = "Velocidade (WalkSpeed)",
+	Desc = "Padrão é 16",
+	Value = { Min = 8, Max = 120, Default = MoveConfig.WalkSpeed },
+	Callback = function(v) MoveConfig.WalkSpeed = v end,
+})
+
+UIRefs.WalkSpeedLoop = MoveTab:Toggle({
+	Title = "Persistir WalkSpeed",
+	Desc = "Mantém a velocidade aplicada continuamente",
+	Value = MoveConfig.WalkSpeedLoop,
+	Callback = function(v) MoveConfig.WalkSpeedLoop = v end,
+})
+
+UIRefs.JumpPowerEn = MoveTab:Toggle({
+	Title = "JumpPower Toggle",
+	Desc = "Altera a força/altura do pulo",
+	Value = false,
+	Callback = function(v) MoveConfig.JumpPowerEnabled = v end,
+})
+
+UIRefs.JumpPowerVal = MoveTab:Slider({
+	Title = "Altura do Pulo (JumpPower)",
+	Desc = "Padrão é 50",
+	Value = { Min = 20, Max = 220, Default = MoveConfig.JumpPower },
+	Callback = function(v) MoveConfig.JumpPower = v end,
+})
+
+UIRefs.InfJump = MoveTab:Toggle({
+	Title = "Infinite Jump",
+	Desc = "Permite pular no ar repetidas vezes",
+	Value = false,
+	Callback = function(v) MoveConfig.InfiniteJump = v end,
+})
+
+UIRefs.NoClip = MoveTab:Toggle({
+	Title = "NoClip",
+	Desc = "Atravessa partes/paredes no personagem",
+	Value = false,
+	Callback = function(v) MoveConfig.NoClip = v end,
+})
+
+UIRefs.FlyEn = MoveTab:Toggle({
+	Title = "Fly (Voo Mobile)",
+	Desc = "Voo livre seguindo a direção da câmera",
+	Value = false,
+	Callback = function(v) MoveConfig.FlyEnabled = v end,
+})
+
+UIRefs.FlySpeed = MoveTab:Slider({
+	Title = "Velocidade do Fly",
+	Desc = "Velocidade de deslocamento no voo",
+	Value = { Min = 15, Max = 180, Default = MoveConfig.FlySpeed },
+	Callback = function(v) MoveConfig.FlySpeed = v end,
+})
+
+UIRefs.AutoSprint = MoveTab:Toggle({
+	Title = "Auto Sprint",
+	Desc = "Ajuda a manter deslocamento contínuo",
+	Value = false,
+	Callback = function(v) MoveConfig.AutoSprint = v end,
+})
+
+UIRefs.Spinbot = MoveTab:Toggle({
+	Title = "Spinbot (Rotação)",
+	Desc = "Gira o personagem continuamente",
+	Value = false,
+	Callback = function(v) MoveConfig.Spinbot = v end,
+})
+
+UIRefs.SpinSpeed = MoveTab:Slider({
+	Title = "Velocidade do Spin",
+	Desc = "Velocidade de rotação",
+	Value = { Min = 2, Max = 50, Default = MoveConfig.SpinSpeed },
+	Callback = function(v) MoveConfig.SpinSpeed = v end,
+})
+
+UIRefs.AntiAFK = MoveTab:Toggle({
+	Title = "Anti-AFK",
+	Desc = "Evita desconexão por inatividade",
+	Value = MoveConfig.AntiAFK,
+	Callback = function(v) MoveConfig.AntiAFK = v end,
+})
+
+UIRefs.AntiRagdoll = MoveTab:Toggle({
+	Title = "Anti-Ragdoll",
+	Desc = "Tenta manter o estado do humanoide estável",
+	Value = false,
+	Callback = function(v) MoveConfig.AntiRagdoll = v end,
+})
+
+UIRefs.CamFOV = MoveTab:Slider({
+	Title = "FOV da Câmera",
+	Desc = "Campo de visão da câmera (60 a 120)",
+	Value = { Min = 60, Max = 120, Default = MoveConfig.CameraFOV },
+	Callback = function(v)
+		MoveConfig.CameraFOV = v
+		pcall(function()
+			if workspace.CurrentCamera then
+				workspace.CurrentCamera.FieldOfView = v
+			end
+		end)
+	end,
+})
+
+UIRefs.Shiftlock = MoveTab:Toggle({
+	Title = "Shiftlock Mobile",
+	Desc = "Trava a orientação do personagem na câmera",
+	Value = false,
+	Callback = function(v) MoveConfig.Shiftlock = v end,
+})
+
+UIRefs.Gravity = MoveTab:Slider({
+	Title = "Gravidade do Mapa",
+	Desc = "Padrão do Roblox é 196",
+	Value = { Min = 20, Max = 350, Default = 196 },
+	Callback = function(v)
+		MoveConfig.Gravity = v
+		pcall(function() workspace.Gravity = v end)
+	end,
+})
+
+MoveTab:Button({
+	Title = "Salvar Posição Atual (Safe Spot)",
+	Desc = "Guarda sua localização atual para voltar depois",
+	Callback = function()
+		local root = getRootPart()
+		if root then
+			HubConfig.SavedSpot = root.CFrame
+			notifyHub("RYKO HUB | Movimento", "Posição salva com sucesso!")
+		end
+	end,
+})
+
+MoveTab:Button({
+	Title = "Voltar Para Posição Salva",
+	Desc = "Teleporta de volta ao Safe Spot salvo",
+	Callback = function()
+		local root = getRootPart()
+		if root and HubConfig.SavedSpot then
+			root.CFrame = HubConfig.SavedSpot + Vector3.new(0, 2, 0)
+			notifyHub("RYKO HUB | Movimento", "Teleportado para o Safe Spot!")
+		else
+			notifyHub("RYKO HUB | Movimento", "Nenhuma posição salva ainda.")
+		end
+	end,
+})
+
+MoveTab:Button({
+	Title = "Resetar Personagem",
+	Desc = "Reinicia seu personagem na partida",
+	Callback = function()
+		local hum = getHumanoid()
+		if hum then
+			hum.Health = 0
+		end
+	end,
+})
+
+-- ==========================================
+-- ABA 5: FPS, PING, REGIÃO & REDE
+-- ==========================================
+local FPSTab = Window:Tab({ Title = "FPS & Rede", Icon = "gauge" })
+
+UIRefs.FPSBoost = FPSTab:Toggle({
+	Title = "FPS Boost",
+	Desc = "Otimiza gráficos, sombras e efeitos para ganhar FPS",
+	Value = false,
+	Callback = function(v) applyFPSBoost(v) end,
+})
+
+UIRefs.NoShadows = FPSTab:Toggle({
+	Title = "Remover Sombras",
+	Desc = "Desliga sombras globais e de partes",
+	Value = false,
+	Callback = function(v)
+		FPSConfig.NoShadows = v
+		applyShadowsState(v)
+	end,
+})
+
+UIRefs.NoParticles = FPSTab:Toggle({
+	Title = "Remover Partículas & Efeitos",
+	Desc = "Desliga partículas, trilhas, fogo e fumaça",
+	Value = false,
+	Callback = function(v)
+		FPSConfig.NoParticles = v
+		applyParticlesState(v)
+	end,
+})
+
+UIRefs.PlasticMode = FPSTab:Toggle({
+	Title = "Modo Plástico (Texturas Simples)",
+	Desc = "Troca materiais pesados por plástico simples",
+	Value = false,
+	Callback = function(v)
+		FPSConfig.PlasticMode = v
+		applyPlasticState(v)
+	end,
+})
+
+UIRefs.NoDecals = FPSTab:Toggle({
+	Title = "Remover Decais & Texturas",
+	Desc = "Oculta decals e texturas para aliviar memória",
+	Value = false,
+	Callback = function(v)
+		FPSConfig.NoDecals = v
+		applyDecalsState(v)
+	end,
+})
+
+UIRefs.UltraLight = FPSTab:Toggle({
+	Title = "Modo Ultra-Leve Mobile",
+	Desc = "Ativa otimizações leves para celulares esquentarem menos",
+	Value = false,
+	Callback = function(v)
+		FPSConfig.UltraLightMobile = v
+		if v then
+			applyFPSBoost(true)
+			FPSConfig.CompactCounter = true
+			updateFPSFrameLayout()
+		end
+	end,
+})
+
+UIRefs.FPSCap = FPSTab:Slider({
+	Title = "Limite de FPS (FPS Cap)",
+	Desc = "Ajusta o teto de FPS quando suportado",
+	Value = { Min = 30, Max = 240, Default = FPSConfig.FPSCap },
+	Callback = function(v)
+		FPSConfig.FPSCap = v
+		applyFPSCap(v)
+	end,
+})
+
+UIRefs.ShowCounter = FPSTab:Toggle({
+	Title = "Mostrar UI Flutuante (FPS + Ping)",
+	Desc = "Exibe caixinha arrastável na tela",
+	Value = false,
+	Callback = function(v)
+		FPSConfig.CounterVisible = v
+		FPSFrame.Visible = v
+		updateFPSFrameLayout()
+	end,
+})
+
+UIRefs.ShowPing = FPSTab:Toggle({
+	Title = "Exibir Ping (MS)",
+	Desc = "Mostra o ping em ms na caixinha",
+	Value = FPSConfig.ShowPing,
+	Callback = function(v)
+		FPSConfig.ShowPing = v
+		updateFPSFrameLayout()
+	end,
+})
+
+UIRefs.ShowMem = FPSTab:Toggle({
+	Title = "Exibir Memória (MB)",
+	Desc = "Mostra uso de memória em MB na caixinha",
+	Value = FPSConfig.ShowMemory,
+	Callback = function(v)
+		FPSConfig.ShowMemory = v
+		updateFPSFrameLayout()
+	end,
+})
+
+UIRefs.DynamicFPSColor = FPSTab:Toggle({
+	Title = "Cor Dinâmica por Desempenho",
+	Desc = "Muda cor do texto conforme FPS e Ping",
+	Value = FPSConfig.DynamicColor,
+	Callback = function(v) FPSConfig.DynamicColor = v end,
+})
+
+UIRefs.CompactCounter = FPSTab:Toggle({
+	Title = "UI Flutuante Compacta",
+	Desc = "Deixa a caixinha menor na tela do mobile",
+	Value = false,
+	Callback = function(v)
+		FPSConfig.CompactCounter = v
+		updateFPSFrameLayout()
+	end,
+})
+
+FPSTab:Button({
+	Title = "Resetar Posição da UI Flutuante",
+	Desc = "Traz a caixinha de FPS/Ping de volta ao canto inicial",
+	Callback = function()
+		FPSFrame.Position = DEFAULT_FPS_POS
+		notifyHub("RYKO HUB | FPS", "Posição da UI resetada!")
+	end,
+})
+
+local initialRegion = detectServerRegion()
+local currentRegionTitle = initialRegion.Flag .. " " .. initialRegion.Name
+
+local RegionParagraph = FPSTab:Paragraph({
+	Title = "Região: " .. currentRegionTitle,
+	Desc = string.format("Código: %s | Ping: %dms", initialRegion.Code, initialRegion.Ping),
+})
+
+local function refreshRegionInfo()
+	local info = detectServerRegion()
+	currentRegionTitle = info.Flag .. " " .. info.Name
+	pcall(function()
+		RegionParagraph:SetTitle("Região: " .. currentRegionTitle)
+		RegionParagraph:SetDesc(string.format(
+			"Código: %s | Ping: %d ms | Memória: %d MB%s",
+			info.Code,
+			info.Ping,
+			getMemoryMB(),
+			info.Estimated and " (Estimado por MS)" or ""
+		))
+	end)
+end
+
+FPSTab:Button({
+	Title = "Atualizar Região e Ping",
+	Desc = "Verifica país, bandeira, MS e memória agora",
+	Callback = function()
+		refreshRegionInfo()
+		notifyHub("RYKO HUB | Região", currentRegionTitle .. " • " .. tostring(getPingMs()) .. "ms")
+	end,
+})
+
+-- ==========================================
+-- ABA 6: MUNDO, JOGADORES & SERVIDOR
+-- ==========================================
+local WorldTab = Window:Tab({ Title = "Mundo & Players", Icon = "globe" })
+
+UIRefs.Fullbright = WorldTab:Toggle({
+	Title = "Fullbright",
+	Desc = "Aumenta iluminação em áreas escuras",
+	Value = false,
+	Callback = function(v)
+		WorldConfig.Fullbright = v
+		pcall(function()
+			if v then
+				Lighting.Brightness = 3
+				Lighting.Ambient = Color3.fromRGB(200, 200, 200)
+				Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200)
+			else
+				Lighting.Brightness = SavedLighting.Brightness
+				Lighting.Ambient = SavedLighting.Ambient
+				Lighting.OutdoorAmbient = SavedLighting.OutdoorAmbient
+			end
+		end)
+	end,
+})
+
+UIRefs.NoFog = WorldTab:Toggle({
+	Title = "Remover Neblina (No Fog)",
+	Desc = "Limpa a neblina para enxergar mais longe",
+	Value = false,
+	Callback = function(v)
+		WorldConfig.NoFog = v
+		pcall(function()
+			Lighting.FogEnd = v and 100000 or SavedLighting.FogEnd
+		end)
+	end,
+})
+
+UIRefs.MuteAudio = WorldTab:Toggle({
+	Title = "Mutar Áudio do Jogo",
+	Desc = "Silencia o som ambiente/efeitos do jogo",
+	Value = false,
+	Callback = function(v)
+		WorldConfig.MuteAudio = v
+		pcall(function()
+			SoundService.Volume = v and 0 or 1
+		end)
+	end,
+})
+
+UIRefs.AutoSkipPopups = WorldTab:Toggle({
+	Title = "Auto-Fechar Popups Simples",
+	Desc = "Fecha botões básicos de fechar/ok de popups",
+	Value = false,
+	Callback = function(v) WorldConfig.AutoSkipPopups = v end,
+})
+
+local function getPlayerNamesList()
+	local names = {}
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			table.insert(names, plr.Name)
+		end
+	end
+	table.sort(names)
+	return names
+end
+
+local PlayerDropdown = WorldTab:Dropdown({
+	Title = "Selecionar Jogador",
+	Desc = "Escolha um jogador da sala atual",
+	Values = getPlayerNamesList(),
+	Value = "",
+	Callback = function(v)
+		if type(v) == "string" then
+			HubConfig.SelectedPlayer = v
+		end
+	end,
+})
+
+WorldTab:Button({
+	Title = "Atualizar Lista de Jogadores",
+	Desc = "Atualiza os nomes na lista",
+	Callback = function()
+		local list = getPlayerNamesList()
+		HubConfig.SelectedPlayer = list[1] or ""
+		pcall(function()
+			if PlayerDropdown and type(PlayerDropdown.Refresh) == "function" then
+				PlayerDropdown:Refresh(list, HubConfig.SelectedPlayer)
+			end
+		end)
+		notifyHub("RYKO HUB | Players", "Lista atualizada (" .. tostring(#list) .. " jogadores).")
+	end,
+})
+
+WorldTab:Button({
+	Title = "Teleportar Para o Jogador",
+	Desc = "Move seu personagem até o jogador selecionado",
+	Callback = function()
+		local target = Players:FindFirstChild(HubConfig.SelectedPlayer)
+		local myRoot = getRootPart()
+		local theirRoot = target and target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+		if myRoot and theirRoot then
+			myRoot.CFrame = theirRoot.CFrame * CFrame.new(0, 0, 3)
+			notifyHub("RYKO HUB | Players", "Teleportado para " .. target.Name)
+		else
+			notifyHub("RYKO HUB | Players", "Jogador inválido ou sem personagem.")
+		end
+	end,
+})
+
+UIRefs.Spectate = WorldTab:Toggle({
+	Title = "Spectate (Assistir Jogador)",
+	Desc = "Câmera acompanha o jogador selecionado",
+	Value = false,
+	Callback = function(v)
+		MoveConfig.Spectating = v
+		pcall(function()
+			local cam = workspace.CurrentCamera
+			local target = Players:FindFirstChild(HubConfig.SelectedPlayer)
+			local hum = target and target.Character and target.Character:FindFirstChildOfClass("Humanoid")
+			if v and hum and cam then
+				cam.CameraSubject = hum
+			else
+				local myHum = getHumanoid()
+				if myHum and cam then
+					cam.CameraSubject = myHum
+				end
+			end
+		end)
+	end,
+})
+
+WorldTab:Button({
+	Title = "Copiar Username e UserId",
+	Desc = "Copia nome e ID do jogador selecionado",
+	Callback = function()
+		local target = Players:FindFirstChild(HubConfig.SelectedPlayer)
+		if target then
+			local info = target.Name .. " | ID: " .. tostring(target.UserId)
+			copyToClipboard(info)
+			notifyHub("RYKO HUB | Copiado", info)
+		end
+	end,
+})
+
+WorldTab:Button({
+	Title = "Copiar JobId e PlaceId",
+	Desc = "Copia ID do servidor e do jogo",
+	Callback = function()
+		local info = "PlaceId: " .. tostring(game.PlaceId) .. " | JobId: " .. tostring(game.JobId)
+		copyToClipboard(info)
+		notifyHub("RYKO HUB | Servidor", "IDs copiados!")
+	end,
+})
+
+WorldTab:Button({
+	Title = "Rejoin (Reconectar Mesmo Servidor)",
+	Desc = "Reentra na partida atual",
+	Callback = function()
+		pcall(function()
+			TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+		end)
+	end,
+})
+
+WorldTab:Button({
+	Title = "Server Hop (Trocar Servidor)",
+	Desc = "Tenta entrar em outro servidor do jogo",
+	Callback = function()
+		pcall(function()
+			TeleportService:Teleport(game.PlaceId, LocalPlayer)
+		end)
+	end,
+})
+
+local StatusParagraph = WorldTab:Paragraph({
+	Title = "RYKO HUB • Status do Sistema",
+	Desc = "Versão: 100-in-1 Mobile • WindUI Ativa",
+})
+
+-- ==========================================
+-- ABA 7: CONFIG (SALVAR, CARREGAR, DELETAR & EXTRAS)
+-- ==========================================
+local ConfigTab = Window:Tab({ Title = "Config", Icon = "save" })
+
+local CONFIG_FOLDER = "RYKO_HUB_CONFIGS"
+local selectedConfigName = ""
+
+local function sanitizeConfigName(name)
+	if type(name) ~= "string" then
+		return ""
+	end
+	return name:gsub("^%s+", ""):gsub("%s+$", ""):gsub("[^%w_%-]", "_")
+end
+
+local function ensureConfigFolder()
+	pcall(function()
+		if type(makefolder) == "function" and (type(isfolder) ~= "function" or not isfolder(CONFIG_FOLDER)) then
+			makefolder(CONFIG_FOLDER)
+		end
+	end)
+end
+
+local function getSavedConfigs()
+	local list = {}
+	ensureConfigFolder()
+	pcall(function()
+		if type(listfiles) == "function" then
+			for _, path in ipairs(listfiles(CONFIG_FOLDER)) do
+				local fileName = path:match("([^/\\]+)$") or path
+				if fileName:sub(-5) == ".json" then
+					local cfgName = fileName:sub(1, -6)
+					if cfgName ~= "" then
+						table.insert(list, cfgName)
+					end
+				end
+			end
+		end
+	end)
+	table.sort(list)
+	return list
+end
+
+local function colorToTable(c)
+	return {
+		r = math.floor((c.R * 255) + 0.5),
+		g = math.floor((c.G * 255) + 0.5),
+		b = math.floor((c.B * 255) + 0.5),
+	}
+end
+
+local function tableToColor(t, fallback)
+	if type(t) == "table" and type(t.r) == "number" and type(t.g) == "number" and type(t.b) == "number" then
+		return Color3.fromRGB(t.r, t.g, t.b)
+	end
+	return fallback
+end
+
+local function safeSet(el, method, val)
+	if el and type(el[method]) == "function" then
+		pcall(function()
+			el[method](el, val)
+		end)
+	end
+end
+
+local function exportAllSettings()
+	return {
+		Hub = {
+			Notifications = HubConfig.Notifications,
+		},
+		ESP = {
+			MasterEnabled = ESPConfig.MasterEnabled,
+			OnlyAlive = ESPConfig.OnlyAlive,
+			Box2D = ESPConfig.Box2D,
+			Box3D = ESPConfig.Box3D,
+			CornerBox = ESPConfig.CornerBox,
+			Skeleton = ESPConfig.Skeleton,
+			LineEnabled = ESPConfig.LineEnabled,
+			LineOrigin = ESPConfig.LineOrigin,
+			LineColor = colorToTable(ESPConfig.LineColor),
+			HealthBar = ESPConfig.HealthBar,
+			HealthText = ESPConfig.HealthText,
+			Name = ESPConfig.Name,
+			UseDisplayName = ESPConfig.UseDisplayName,
+			Distance = ESPConfig.Distance,
+			Tool = ESPConfig.Tool,
+			Highlight = ESPConfig.Highlight,
+			TeamCheck = ESPConfig.TeamCheck,
+			FriendHighlight = ESPConfig.FriendHighlight,
+			FriendColor = colorToTable(ESPConfig.FriendColor),
+			TargetIndicator = ESPConfig.TargetIndicator,
+			TargetColor = colorToTable(ESPConfig.TargetColor),
+			OutOfFOVArrows = ESPConfig.OutOfFOVArrows,
+			MaxDistance = ESPConfig.MaxDistance,
+			TextSize = ESPConfig.TextSize,
+			Thickness = ESPConfig.Thickness,
+			Color = colorToTable(ESPConfig.Color),
+		},
+		Aimbot = {
+			Enabled = AimbotConfig.Enabled,
+			TeamCheck = AimbotConfig.TeamCheck,
+			WallCheck = AimbotConfig.WallCheck,
+			TargetSpot = AimbotConfig.TargetSpot,
+			Smoothness = math.floor((AimbotConfig.Smoothness * 100) + 0.5),
+			MaxDistance = AimbotConfig.MaxDistance,
+			Priority = AimbotConfig.Priority,
+			Prediction = math.floor((AimbotConfig.Prediction * 100) + 0.5),
+			StickyTarget = AimbotConfig.StickyTarget,
+			FloatingButton = AimbotConfig.FloatingButton,
+			DisableOnTouch = AimbotConfig.DisableOnTouch,
+			FOVEnabled = AimbotConfig.FOVEnabled,
+			FOVOnlyWhenAiming = AimbotConfig.FOVOnlyWhenAiming,
+			FOVDynamicZoom = AimbotConfig.FOVDynamicZoom,
+			FOVRadius = AimbotConfig.FOVRadius,
+			FOVThickness = AimbotConfig.FOVThickness,
+			FOVNumSides = AimbotConfig.FOVNumSides,
+			FOVColor = colorToTable(AimbotConfig.FOVColor),
+		},
+		Move = {
+			WalkSpeedEnabled = MoveConfig.WalkSpeedEnabled,
+			WalkSpeed = MoveConfig.WalkSpeed,
+			WalkSpeedLoop = MoveConfig.WalkSpeedLoop,
+			JumpPowerEnabled = MoveConfig.JumpPowerEnabled,
+			JumpPower = MoveConfig.JumpPower,
+			InfiniteJump = MoveConfig.InfiniteJump,
+			NoClip = MoveConfig.NoClip,
+			FlyEnabled = MoveConfig.FlyEnabled,
+			FlySpeed = MoveConfig.FlySpeed,
+			AntiAFK = MoveConfig.AntiAFK,
+			AntiRagdoll = MoveConfig.AntiRagdoll,
+			Spinbot = MoveConfig.Spinbot,
+			SpinSpeed = MoveConfig.SpinSpeed,
+			CameraFOV = MoveConfig.CameraFOV,
+			Shiftlock = MoveConfig.Shiftlock,
+			AutoSprint = MoveConfig.AutoSprint,
+			Gravity = MoveConfig.Gravity,
+		},
+		FPS = {
+			BoostEnabled = FPSConfig.BoostEnabled,
+			NoShadows = FPSConfig.NoShadows,
+			NoParticles = FPSConfig.NoParticles,
+			PlasticMode = FPSConfig.PlasticMode,
+			NoDecals = FPSConfig.NoDecals,
+			UltraLightMobile = FPSConfig.UltraLightMobile,
+			FPSCap = FPSConfig.FPSCap,
+			CounterVisible = FPSConfig.CounterVisible,
+			ShowPing = FPSConfig.ShowPing,
+			ShowMemory = FPSConfig.ShowMemory,
+			DynamicColor = FPSConfig.DynamicColor,
+			CompactCounter = FPSConfig.CompactCounter,
+		},
+		World = {
+			Fullbright = WorldConfig.Fullbright,
+			NoFog = WorldConfig.NoFog,
+			MuteAudio = WorldConfig.MuteAudio,
+			AutoSkipPopups = WorldConfig.AutoSkipPopups,
+		},
+	}
+end
+
+local function applyAllSettings(data)
+	if type(data) ~= "table" then
+		return
+	end
+
+	if type(data.Hub) == "table" and type(data.Hub.Notifications) == "boolean" then
+		HubConfig.Notifications = data.Hub.Notifications
+		safeSet(UIRefs.HubNotif, "Set", data.Hub.Notifications)
+	end
+
+	if type(data.ESP) == "table" then
+		local e = data.ESP
+		if type(e.MasterEnabled) == "boolean" then ESPConfig.MasterEnabled = e.MasterEnabled; safeSet(UIRefs.ESPMaster, "Set", e.MasterEnabled) end
+		if type(e.OnlyAlive) == "boolean" then ESPConfig.OnlyAlive = e.OnlyAlive; safeSet(UIRefs.ESPOnlyAlive, "Set", e.OnlyAlive) end
+		if type(e.Box2D) == "boolean" then ESPConfig.Box2D = e.Box2D; safeSet(UIRefs.ESPBox2D, "Set", e.Box2D) end
+		if type(e.Box3D) == "boolean" then ESPConfig.Box3D = e.Box3D; safeSet(UIRefs.ESPBox3D, "Set", e.Box3D) end
+		if type(e.CornerBox) == "boolean" then ESPConfig.CornerBox = e.CornerBox; safeSet(UIRefs.ESPCornerBox, "Set", e.CornerBox) end
+		if type(e.Skeleton) == "boolean" then ESPConfig.Skeleton = e.Skeleton; safeSet(UIRefs.ESPSkeleton, "Set", e.Skeleton) end
+		if type(e.LineEnabled) == "boolean" then ESPConfig.LineEnabled = e.LineEnabled; safeSet(UIRefs.LineEnabled, "Set", e.LineEnabled) end
+		if e.LineOrigin == "Embaixo" or e.LineOrigin == "Em cima" then ESPConfig.LineOrigin = e.LineOrigin; safeSet(UIRefs.LineOrigin, "Select", e.LineOrigin) end
+		ESPConfig.LineColor = tableToColor(e.LineColor, ESPConfig.LineColor); safeSet(UIRefs.LineColor, "Set", ESPConfig.LineColor)
+		if type(e.HealthBar) == "boolean" then ESPConfig.HealthBar = e.HealthBar; safeSet(UIRefs.ESPHealthBar, "Set", e.HealthBar) end
+		if type(e.HealthText) == "boolean" then ESPConfig.HealthText = e.HealthText; safeSet(UIRefs.ESPHealthText, "Set", e.HealthText) end
+		if type(e.Name) == "boolean" then ESPConfig.Name = e.Name; safeSet(UIRefs.ESPName, "Set", e.Name) end
+		if type(e.UseDisplayName) == "boolean" then ESPConfig.UseDisplayName = e.UseDisplayName; safeSet(UIRefs.ESPUseDisplay, "Set", e.UseDisplayName) end
+		if type(e.Distance) == "boolean" then ESPConfig.Distance = e.Distance; safeSet(UIRefs.ESPDistance, "Set", e.Distance) end
+		if type(e.Tool) == "boolean" then ESPConfig.Tool = e.Tool; safeSet(UIRefs.ESPTool, "Set", e.Tool) end
+		if type(e.Highlight) == "boolean" then ESPConfig.Highlight = e.Highlight; safeSet(UIRefs.ESPHighlight, "Set", e.Highlight) end
+		if type(e.TeamCheck) == "boolean" then ESPConfig.TeamCheck = e.TeamCheck; safeSet(UIRefs.ESPTeamCheck, "Set", e.TeamCheck) end
+		if type(e.FriendHighlight) == "boolean" then ESPConfig.FriendHighlight = e.FriendHighlight; safeSet(UIRefs.ESPFriendHighlight, "Set", e.FriendHighlight) end
+		ESPConfig.FriendColor = tableToColor(e.FriendColor, ESPConfig.FriendColor); safeSet(UIRefs.FriendColor, "Set", ESPConfig.FriendColor)
+		if type(e.TargetIndicator) == "boolean" then ESPConfig.TargetIndicator = e.TargetIndicator; safeSet(UIRefs.ESPTargetInd, "Set", e.TargetIndicator) end
+		ESPConfig.TargetColor = tableToColor(e.TargetColor, ESPConfig.TargetColor); safeSet(UIRefs.TargetColor, "Set", ESPConfig.TargetColor)
+		if type(e.OutOfFOVArrows) == "boolean" then ESPConfig.OutOfFOVArrows = e.OutOfFOVArrows; safeSet(UIRefs.ESPArrows, "Set", e.OutOfFOVArrows) end
+		if type(e.MaxDistance) == "number" then ESPConfig.MaxDistance = e.MaxDistance; safeSet(UIRefs.ESPMaxDist, "Set", e.MaxDistance) end
+		if type(e.TextSize) == "number" then ESPConfig.TextSize = e.TextSize; safeSet(UIRefs.ESPTextSize, "Set", e.TextSize) end
+		if type(e.Thickness) == "number" then ESPConfig.Thickness = e.Thickness; safeSet(UIRefs.ESPThickness, "Set", e.Thickness) end
+		ESPConfig.Color = tableToColor(e.Color, ESPConfig.Color); safeSet(UIRefs.ESPColor, "Set", ESPConfig.Color)
+	end
+
+	if type(data.Aimbot) == "table" then
+		local a = data.Aimbot
+		if type(a.Enabled) == "boolean" then AimbotConfig.Enabled = a.Enabled; safeSet(UIRefs.AimbotEnabled, "Set", a.Enabled) end
+		if type(a.TeamCheck) == "boolean" then AimbotConfig.TeamCheck = a.TeamCheck; safeSet(UIRefs.AimTeamCheck, "Set", a.TeamCheck) end
+		if type(a.WallCheck) == "boolean" then AimbotConfig.WallCheck = a.WallCheck; safeSet(UIRefs.AimWallCheck, "Set", a.WallCheck) end
+		if type(a.TargetSpot) == "string" then AimbotConfig.TargetSpot = a.TargetSpot; safeSet(UIRefs.AimSpot, "Select", a.TargetSpot) end
+		if type(a.Smoothness) == "number" then
+			local sm = math.clamp(a.Smoothness, 5, 100)
+			AimbotConfig.Smoothness = sm / 100
+			safeSet(UIRefs.AimSmooth, "Set", sm)
+		end
+		if type(a.MaxDistance) == "number" then AimbotConfig.MaxDistance = a.MaxDistance; safeSet(UIRefs.AimMaxDist, "Set", a.MaxDistance) end
+		if type(a.Priority) == "string" then AimbotConfig.Priority = a.Priority; safeSet(UIRefs.AimPriority, "Select", a.Priority) end
+		if type(a.Prediction) == "number" then
+			local pred = math.clamp(a.Prediction, 0, 30)
+			AimbotConfig.Prediction = pred / 100
+			safeSet(UIRefs.AimPrediction, "Set", pred)
+		end
+		if type(a.StickyTarget) == "boolean" then AimbotConfig.StickyTarget = a.StickyTarget; safeSet(UIRefs.AimSticky, "Set", a.StickyTarget) end
+		if type(a.FloatingButton) == "boolean" then AimbotConfig.FloatingButton = a.FloatingButton; AimBtn.Visible = a.FloatingButton; safeSet(UIRefs.AimFloatingBtn, "Set", a.FloatingButton) end
+		if type(a.DisableOnTouch) == "boolean" then AimbotConfig.DisableOnTouch = a.DisableOnTouch; safeSet(UIRefs.AimDisableTouch, "Set", a.DisableOnTouch) end
+		if type(a.FOVEnabled) == "boolean" then AimbotConfig.FOVEnabled = a.FOVEnabled; safeSet(UIRefs.FOVEnabled, "Set", a.FOVEnabled) end
+		if type(a.FOVOnlyWhenAiming) == "boolean" then AimbotConfig.FOVOnlyWhenAiming = a.FOVOnlyWhenAiming; safeSet(UIRefs.FOVOnlyAim, "Set", a.FOVOnlyWhenAiming) end
+		if type(a.FOVDynamicZoom) == "boolean" then AimbotConfig.FOVDynamicZoom = a.FOVDynamicZoom; safeSet(UIRefs.FOVZoom, "Set", a.FOVDynamicZoom) end
+		if type(a.FOVRadius) == "number" then AimbotConfig.FOVRadius = a.FOVRadius; safeSet(UIRefs.FOVRadius, "Set", a.FOVRadius) end
+		if type(a.FOVThickness) == "number" then AimbotConfig.FOVThickness = a.FOVThickness; safeSet(UIRefs.FOVThick, "Set", a.FOVThickness) end
+		if type(a.FOVNumSides) == "number" then AimbotConfig.FOVNumSides = a.FOVNumSides; safeSet(UIRefs.FOVSides, "Set", a.FOVNumSides) end
+		AimbotConfig.FOVColor = tableToColor(a.FOVColor, AimbotConfig.FOVColor); safeSet(UIRefs.FOVColor, "Set", AimbotConfig.FOVColor)
+		syncAimbotButtonText()
+	end
+
+	if type(data.Move) == "table" then
+		local m = data.Move
+		if type(m.WalkSpeedEnabled) == "boolean" then MoveConfig.WalkSpeedEnabled = m.WalkSpeedEnabled; safeSet(UIRefs.WalkSpeedEn, "Set", m.WalkSpeedEnabled) end
+		if type(m.WalkSpeed) == "number" then MoveConfig.WalkSpeed = m.WalkSpeed; safeSet(UIRefs.WalkSpeedVal, "Set", m.WalkSpeed) end
+		if type(m.WalkSpeedLoop) == "boolean" then MoveConfig.WalkSpeedLoop = m.WalkSpeedLoop; safeSet(UIRefs.WalkSpeedLoop, "Set", m.WalkSpeedLoop) end
+		if type(m.JumpPowerEnabled) == "boolean" then MoveConfig.JumpPowerEnabled = m.JumpPowerEnabled; safeSet(UIRefs.JumpPowerEn, "Set", m.JumpPowerEnabled) end
+		if type(m.JumpPower) == "number" then MoveConfig.JumpPower = m.JumpPower; safeSet(UIRefs.JumpPowerVal, "Set", m.JumpPower) end
+		if type(m.InfiniteJump) == "boolean" then MoveConfig.InfiniteJump = m.InfiniteJump; safeSet(UIRefs.InfJump, "Set", m.InfiniteJump) end
+		if type(m.NoClip) == "boolean" then MoveConfig.NoClip = m.NoClip; safeSet(UIRefs.NoClip, "Set", m.NoClip) end
+		if type(m.FlyEnabled) == "boolean" then MoveConfig.FlyEnabled = m.FlyEnabled; safeSet(UIRefs.FlyEn, "Set", m.FlyEnabled) end
+		if type(m.FlySpeed) == "number" then MoveConfig.FlySpeed = m.FlySpeed; safeSet(UIRefs.FlySpeed, "Set", m.FlySpeed) end
+		if type(m.AntiAFK) == "boolean" then MoveConfig.AntiAFK = m.AntiAFK; safeSet(UIRefs.AntiAFK, "Set", m.AntiAFK) end
+		if type(m.AntiRagdoll) == "boolean" then MoveConfig.AntiRagdoll = m.AntiRagdoll; safeSet(UIRefs.AntiRagdoll, "Set", m.AntiRagdoll) end
+		if type(m.Spinbot) == "boolean" then MoveConfig.Spinbot = m.Spinbot; safeSet(UIRefs.Spinbot, "Set", m.Spinbot) end
+		if type(m.SpinSpeed) == "number" then MoveConfig.SpinSpeed = m.SpinSpeed; safeSet(UIRefs.SpinSpeed, "Set", m.SpinSpeed) end
+		if type(m.CameraFOV) == "number" then MoveConfig.CameraFOV = m.CameraFOV; safeSet(UIRefs.CamFOV, "Set", m.CameraFOV); pcall(function() if workspace.CurrentCamera then workspace.CurrentCamera.FieldOfView = m.CameraFOV end end) end
+		if type(m.Shiftlock) == "boolean" then MoveConfig.Shiftlock = m.Shiftlock; safeSet(UIRefs.Shiftlock, "Set", m.Shiftlock) end
+		if type(m.AutoSprint) == "boolean" then MoveConfig.AutoSprint = m.AutoSprint; safeSet(UIRefs.AutoSprint, "Set", m.AutoSprint) end
+		if type(m.Gravity) == "number" then MoveConfig.Gravity = m.Gravity; safeSet(UIRefs.Gravity, "Set", m.Gravity); pcall(function() workspace.Gravity = m.Gravity end) end
+	end
+
+	if type(data.FPS) == "table" then
+		local f = data.FPS
+		if type(f.NoShadows) == "boolean" then FPSConfig.NoShadows = f.NoShadows; safeSet(UIRefs.NoShadows, "Set", f.NoShadows); applyShadowsState(f.NoShadows) end
+		if type(f.NoParticles) == "boolean" then FPSConfig.NoParticles = f.NoParticles; safeSet(UIRefs.NoParticles, "Set", f.NoParticles); applyParticlesState(f.NoParticles) end
+		if type(f.PlasticMode) == "boolean" then FPSConfig.PlasticMode = f.PlasticMode; safeSet(UIRefs.PlasticMode, "Set", f.PlasticMode); applyPlasticState(f.PlasticMode) end
+		if type(f.NoDecals) == "boolean" then FPSConfig.NoDecals = f.NoDecals; safeSet(UIRefs.NoDecals, "Set", f.NoDecals); applyDecalsState(f.NoDecals) end
+		if type(f.BoostEnabled) == "boolean" then FPSConfig.BoostEnabled = f.BoostEnabled; safeSet(UIRefs.FPSBoost, "Set", f.BoostEnabled); applyFPSBoost(f.BoostEnabled) end
+		if type(f.FPSCap) == "number" then FPSConfig.FPSCap = f.FPSCap; safeSet(UIRefs.FPSCap, "Set", f.FPSCap); applyFPSCap(f.FPSCap) end
+		if type(f.ShowPing) == "boolean" then FPSConfig.ShowPing = f.ShowPing; safeSet(UIRefs.ShowPing, "Set", f.ShowPing) end
+		if type(f.ShowMemory) == "boolean" then FPSConfig.ShowMemory = f.ShowMemory; safeSet(UIRefs.ShowMem, "Set", f.ShowMemory) end
+		if type(f.DynamicColor) == "boolean" then FPSConfig.DynamicColor = f.DynamicColor; safeSet(UIRefs.DynamicFPSColor, "Set", f.DynamicColor) end
+		if type(f.CompactCounter) == "boolean" then FPSConfig.CompactCounter = f.CompactCounter; safeSet(UIRefs.CompactCounter, "Set", f.CompactCounter) end
+		if type(f.CounterVisible) == "boolean" then FPSConfig.CounterVisible = f.CounterVisible; FPSFrame.Visible = f.CounterVisible; safeSet(UIRefs.ShowCounter, "Set", f.CounterVisible) end
+		updateFPSFrameLayout()
+	end
+
+	if type(data.World) == "table" then
+		local w = data.World
+		if type(w.Fullbright) == "boolean" then WorldConfig.Fullbright = w.Fullbright; safeSet(UIRefs.Fullbright, "Set", w.Fullbright) end
+		if type(w.NoFog) == "boolean" then WorldConfig.NoFog = w.NoFog; safeSet(UIRefs.NoFog, "Set", w.NoFog) end
+		if type(w.MuteAudio) == "boolean" then WorldConfig.MuteAudio = w.MuteAudio; safeSet(UIRefs.MuteAudio, "Set", w.MuteAudio); pcall(function() SoundService.Volume = w.MuteAudio and 0 or 1 end) end
+		if type(w.AutoSkipPopups) == "boolean" then WorldConfig.AutoSkipPopups = w.AutoSkipPopups; safeSet(UIRefs.AutoSkipPopups, "Set", w.AutoSkipPopups) end
+	end
+end
+
+ConfigTab:Input({
+	Title = "Nome da Config",
+	Desc = "Digite o nome para salvar, carregar ou deletar",
+	Value = "",
+	Placeholder = "Ex: legit_mobile",
+	Callback = function(v)
+		selectedConfigName = sanitizeConfigName(v)
+	end,
+})
+
+local SavedConfigsDropdown = ConfigTab:Dropdown({
+	Title = "Configs Salvas",
+	Desc = "Escolha uma config salva",
+	Values = getSavedConfigs(),
+	Value = "",
+	Callback = function(v)
+		if type(v) == "string" and v ~= "" then
+			selectedConfigName = sanitizeConfigName(v)
+		end
+	end,
+})
+
+local function refreshConfigDropdown(selectName)
+	local list = getSavedConfigs()
+	pcall(function()
+		if SavedConfigsDropdown and type(SavedConfigsDropdown.Refresh) == "function" then
+			SavedConfigsDropdown:Refresh(list, selectName or "")
+		end
+	end)
+end
+
+ConfigTab:Button({
+	Title = "Salvar Config",
+	Desc = "Salva o estado atual com o nome digitado",
+	Callback = function()
+		local cfgName = sanitizeConfigName(selectedConfigName)
+		if cfgName == "" then
+			notifyHub("RYKO HUB | Config", "Digite um nome para salvar.")
+			return
+		end
+		ensureConfigFolder()
+		local path = CONFIG_FOLDER .. "/" .. cfgName .. ".json"
+		local ok = pcall(function()
+			writefile(path, HttpService:JSONEncode(exportAllSettings()))
+		end)
+		if ok then
+			refreshConfigDropdown(cfgName)
+			notifyHub("RYKO HUB | Config", "Config '" .. cfgName .. "' salva!")
+		else
+			notifyHub("RYKO HUB | Config", "Executor sem suporte a writefile.")
+		end
+	end,
+})
+
+ConfigTab:Button({
+	Title = "Load Config",
+	Desc = "Carrega a config selecionada/digitada",
+	Callback = function()
+		local cfgName = sanitizeConfigName(selectedConfigName)
+		if cfgName == "" then
+			notifyHub("RYKO HUB | Config", "Escolha ou digite o nome de uma config.")
+			return
+		end
+		local path = CONFIG_FOLDER .. "/" .. cfgName .. ".json"
+		local raw = nil
+		local ok = pcall(function()
+			if type(isfile) == "function" and isfile(path) then
+				raw = readfile(path)
+			elseif type(readfile) == "function" then
+				raw = readfile(path)
+			end
+		end)
+		if ok and type(raw) == "string" and raw ~= "" then
+			local decOk, decoded = pcall(function() return HttpService:JSONDecode(raw) end)
+			if decOk and type(decoded) == "table" then
+				applyAllSettings(decoded)
+				notifyHub("RYKO HUB | Config", "Config '" .. cfgName .. "' carregada!")
+				return
+			end
+		end
+		notifyHub("RYKO HUB | Config", "Config '" .. cfgName .. "' não encontrada.")
+	end,
+})
+
+ConfigTab:Button({
+	Title = "Deletar Config",
+	Desc = "Apaga a config selecionada/digitada",
+	Callback = function()
+		local cfgName = sanitizeConfigName(selectedConfigName)
+		if cfgName == "" then
+			notifyHub("RYKO HUB | Config", "Escolha ou digite o nome para deletar.")
+			return
+		end
+		local path = CONFIG_FOLDER .. "/" .. cfgName .. ".json"
+		local ok = pcall(function()
+			if type(delfile) == "function" and (type(isfile) ~= "function" or isfile(path)) then
+				delfile(path)
+			end
+		end)
+		if ok then
+			selectedConfigName = ""
+			refreshConfigDropdown("")
+			notifyHub("RYKO HUB | Config", "Config '" .. cfgName .. "' deletada!")
+		else
+			notifyHub("RYKO HUB | Config", "Não foi possível deletar a config.")
+		end
+	end,
+})
+
+ConfigTab:Button({
+	Title = "Atualizar Lista de Configs",
+	Desc = "Recarrega configs salvas na pasta",
+	Callback = function()
+		refreshConfigDropdown(selectedConfigName)
+		notifyHub("RYKO HUB | Config", "Lista atualizada!")
+	end,
+})
+
+ConfigTab:Button({
+	Title = "Copiar Config (JSON)",
+	Desc = "Copia configuração atual em texto JSON",
+	Callback = function()
+		local jsonStr = HttpService:JSONEncode(exportAllSettings())
+		copyToClipboard(jsonStr)
+		notifyHub("RYKO HUB | Config", "JSON copiado para área de transferência!")
+	end,
+})
+
+local ImportJsonText = ""
+ConfigTab:Input({
+	Title = "Colar JSON Para Importar",
+	Desc = "Cole um JSON de config aqui e clique em Importar",
+	Value = "",
+	Placeholder = "{...}",
+	Callback = function(v)
+		ImportJsonText = v or ""
+	end,
+})
+
+ConfigTab:Button({
+	Title = "Importar Config (JSON)",
+	Desc = "Aplica o JSON colado acima",
+	Callback = function()
+		local ok, decoded = pcall(function() return HttpService:JSONDecode(ImportJsonText) end)
+		if ok and type(decoded) == "table" then
+			applyAllSettings(decoded)
+			notifyHub("RYKO HUB | Config", "JSON importado e aplicado!")
+		else
+			notifyHub("RYKO HUB | Config", "JSON inválido.")
+		end
+	end,
+})
+
+ConfigTab:Button({
+	Title = "Preset: FPS Máximo Mobile",
+	Desc = "Ativa FPS Boost, UI flutuante e esconde ESPs pesados",
+	Callback = function()
+		applyAllSettings({
+			ESP = { MasterEnabled = false, Box2D = false, Box3D = false, Skeleton = false, LineEnabled = false },
+			FPS = { BoostEnabled = true, CounterVisible = true, ShowPing = true, ShowMemory = true, DynamicColor = true },
+		})
+		notifyHub("RYKO HUB | Preset", "Preset FPS Máximo ativado!")
+	end,
+})
+
+ConfigTab:Button({
+	Title = "Preset: ESP + Line Legit",
+	Desc = "Ativa ESP Box, Name, Distance e ESP Line embaixo",
+	Callback = function()
+		applyAllSettings({
+			ESP = { MasterEnabled = true, Box2D = true, Name = true, Distance = true, LineEnabled = true, LineOrigin = "Embaixo" },
+			Aimbot = { FOVEnabled = true, FOVOnlyWhenAiming = true, FOVRadius = 110 },
+		})
+		notifyHub("RYKO HUB | Preset", "Preset ESP + Line Legit aplicado!")
+	end,
+})
+
+ConfigTab:Button({
+	Title = "Resetar Tudo (Padrão)",
+	Desc = "Desliga funções ativas e restaura valores iniciais",
+	Callback = function()
+		applyFPSBoost(false)
+		pcall(function()
+			workspace.Gravity = 196.2
+			Lighting.Brightness = SavedLighting.Brightness
+			Lighting.Ambient = SavedLighting.Ambient
+			Lighting.OutdoorAmbient = SavedLighting.OutdoorAmbient
+			Lighting.FogEnd = SavedLighting.FogEnd
+			SoundService.Volume = 1
+			if workspace.CurrentCamera then
+				workspace.CurrentCamera.FieldOfView = 70
+				local hum = getHumanoid()
+				if hum then workspace.CurrentCamera.CameraSubject = hum end
+			end
+		end)
+		applyAllSettings({
+			Hub = { Notifications = true },
+			ESP = {
+				MasterEnabled = true, OnlyAlive = true, Box2D = false, Box3D = false, CornerBox = false,
+				Skeleton = false, LineEnabled = false, LineOrigin = "Embaixo", HealthBar = false,
+				HealthText = false, Name = false, UseDisplayName = true, Distance = false, Tool = false,
+				Highlight = false, TeamCheck = false, FriendHighlight = true, TargetIndicator = true,
+				OutOfFOVArrows = false, MaxDistance = 1500, TextSize = 14, Thickness = 1.5,
+			},
+			Aimbot = {
+				Enabled = false, TeamCheck = false, WallCheck = false, TargetSpot = "Cabeça",
+				Smoothness = 25, MaxDistance = 600, Priority = "FOV", Prediction = 0,
+				StickyTarget = true, FloatingButton = false, DisableOnTouch = false,
+				FOVEnabled = false, FOVOnlyWhenAiming = false, FOVDynamicZoom = false,
+				FOVRadius = 120, FOVThickness = 2, FOVNumSides = 64,
+			},
+			Move = {
+				WalkSpeedEnabled = false, WalkSpeed = 16, WalkSpeedLoop = true,
+				JumpPowerEnabled = false, JumpPower = 50, InfiniteJump = false,
+				NoClip = false, FlyEnabled = false, FlySpeed = 55, AntiAFK = true,
+				AntiRagdoll = false, Spinbot = false, SpinSpeed = 14, CameraFOV = 70,
+				Shiftlock = false, AutoSprint = false, Gravity = 196,
+			},
+			FPS = {
+				BoostEnabled = false, NoShadows = false, NoParticles = false, PlasticMode = false,
+				NoDecals = false, UltraLightMobile = false, FPSCap = 60, CounterVisible = false,
+				ShowPing = true, ShowMemory = true, DynamicColor = true, CompactCounter = false,
+			},
+			World = { Fullbright = false, NoFog = false, MuteAudio = false, AutoSkipPopups = false },
+		})
+		notifyHub("RYKO HUB | Config", "Tudo resetado para o padrão!")
+	end,
+})
+
+UIRefs.HubNotif = ConfigTab:Toggle({
+	Title = "Notificações do Hub",
+	Desc = "Mostra ou oculta avisos de notificação",
+	Value = HubConfig.Notifications,
+	Callback = function(v) HubConfig.Notifications = v end,
+})
+
+-- ==========================================
+-- DRAWING OBJECTS (ESP + FOV + SETAS)
+-- ==========================================
+local ESPObjects = {}
+
+local R15Bones = {
+	{ "Head", "UpperTorso" }, { "UpperTorso", "LowerTorso" },
+	{ "UpperTorso", "LeftUpperArm" }, { "LeftUpperArm", "LeftLowerArm" }, { "LeftLowerArm", "LeftHand" },
+	{ "UpperTorso", "RightUpperArm" }, { "RightUpperArm", "RightLowerArm" }, { "RightLowerArm", "RightHand" },
+	{ "LowerTorso", "LeftUpperLeg" }, { "LeftUpperLeg", "LeftLowerLeg" }, { "LeftLowerLeg", "LeftFoot" },
+	{ "LowerTorso", "RightUpperLeg" }, { "RightUpperLeg", "RightLowerLeg" }, { "RightLowerLeg", "RightFoot" },
+}
+
+local R6Bones = {
+	{ "Head", "Torso" }, { "Torso", "Left Arm" }, { "Torso", "Right Arm" },
+	{ "Torso", "Left Leg" }, { "Torso", "Right Leg" },
+}
+
+local function newDrawing(drawType, props)
+	local ok, obj = pcall(function() return Drawing.new(drawType) end)
+	if not ok or not obj then return nil end
+	for k, v in pairs(props) do
+		pcall(function() obj[k] = v end)
+	end
+	return obj
+end
+
+local function setProp(obj, prop, val)
+	if obj then pcall(function() obj[prop] = val end) end
+end
+
+local function removeObj(obj)
+	if obj then pcall(function() obj:Remove() end) end
+end
+
+local FOVCircle = newDrawing("Circle", {
+	Thickness = AimbotConfig.FOVThickness,
+	NumSides = AimbotConfig.FOVNumSides,
+	Radius = AimbotConfig.FOVRadius,
+	Filled = false,
+	Color = AimbotConfig.FOVColor,
+	Visible = false,
+})
+
+local function createESP(player)
+	if player == LocalPlayer or ESPObjects[player] then return end
+
+	local data = {
+		BoxOutline = newDrawing("Square", { Thickness = 3, Filled = false, Color = Color3.new(0, 0, 0), Visible = false }),
+		Box2D = newDrawing("Square", { Thickness = 1.5, Filled = false, Color = ESPConfig.Color, Visible = false }),
+		CornerLines = {},
+		Box3DLines = {},
+		Line = newDrawing("Line", { Thickness = 1.5, Color = ESPConfig.LineColor, Visible = false }),
+		HealthOutline = newDrawing("Line", { Thickness = 4, Color = Color3.new(0, 0, 0), Visible = false }),
+		HealthBar = newDrawing("Line", { Thickness = 2, Color = Color3.fromRGB(0, 255, 100), Visible = false }),
+		InfoText = newDrawing("Text", { Size = 14, Center = true, Outline = true, Color = ESPConfig.Color, Visible = false }),
+		SubText = newDrawing("Text", { Size = 13, Center = true, Outline = true, Color = Color3.fromRGB(220, 220, 255), Visible = false }),
+		Arrow = newDrawing("Triangle", { Filled = true, Thickness = 1.5, Color = ESPConfig.Color, Visible = false }),
+		Skeleton = {},
+		Highlight = nil,
+	}
+
+	for i = 1, 8 do
+		data.CornerLines[i] = newDrawing("Line", { Thickness = 1.5, Color = ESPConfig.Color, Visible = false })
+	end
+	for i = 1, 12 do
+		data.Box3DLines[i] = newDrawing("Line", { Thickness = 1.4, Color = ESPConfig.Color, Visible = false })
+	end
+	for i = 1, 14 do
+		data.Skeleton[i] = newDrawing("Line", { Thickness = 1.5, Color = ESPConfig.Color, Visible = false })
+	end
+
+	ESPObjects[player] = data
+end
+
+local function clearHighlight(data)
+	if data and data.Highlight then
+		pcall(function() data.Highlight:Destroy() end)
+		data.Highlight = nil
+	end
+end
+
+local function removeESP(player)
+	local data = ESPObjects[player]
+	if not data then return end
+	removeObj(data.BoxOutline)
+	removeObj(data.Box2D)
+	for _, l in ipairs(data.CornerLines) do removeObj(l) end
+	for _, l in ipairs(data.Box3DLines) do removeObj(l) end
+	removeObj(data.Line)
+	removeObj(data.HealthOutline)
+	removeObj(data.HealthBar)
+	removeObj(data.InfoText)
+	removeObj(data.SubText)
+	removeObj(data.Arrow)
+	for _, b in ipairs(data.Skeleton) do removeObj(b) end
+	clearHighlight(data)
+	ESPObjects[player] = nil
+end
+
+local function hideESP(data)
+	setProp(data.BoxOutline, "Visible", false)
+	setProp(data.Box2D, "Visible", false)
+	for _, l in ipairs(data.CornerLines) do setProp(l, "Visible", false) end
+	for _, l in ipairs(data.Box3DLines) do setProp(l, "Visible", false) end
+	setProp(data.Line, "Visible", false)
+	setProp(data.HealthOutline, "Visible", false)
+	setProp(data.HealthBar, "Visible", false)
+	setProp(data.InfoText, "Visible", false)
+	setProp(data.SubText, "Visible", false)
+	setProp(data.Arrow, "Visible", false)
+	for _, b in ipairs(data.Skeleton) do setProp(b, "Visible", false) end
+	clearHighlight(data)
+end
+
+local function isSameTeam(player, teamCheckEnabled)
+	if not teamCheckEnabled then return false end
+	if LocalPlayer.Team and player.Team then
+		return LocalPlayer.Team == player.Team
+	end
+	return false
+end
+
+local function isFriendPlayer(player)
+	if not ESPConfig.FriendHighlight then return false end
+	local ok, res = pcall(function() return LocalPlayer:IsFriendsWith(player.UserId) end)
+	return ok and res == true
+end
+
+local function hasLineOfSight(fromPos, targetPart, targetCharacter)
+	if not AimbotConfig.WallCheck then return true end
+	local ok, result = pcall(function()
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		local ignoreList = {}
+		if LocalPlayer.Character then table.insert(ignoreList, LocalPlayer.Character) end
+		if targetCharacter then table.insert(ignoreList, targetCharacter) end
+		params.FilterDescendantsInstances = ignoreList
+		local dir = targetPart.Position - fromPos
+		return workspace:Raycast(fromPos, dir, params)
+	end)
+	if not ok then return true end
+	return result == nil
+end
+
+local function getAimTargetData(character, humanoid)
+	local head = character:FindFirstChild("Head")
+	local root = character:FindFirstChild("HumanoidRootPart")
+	local isR15 = humanoid and humanoid.RigType == Enum.HumanoidRigType.R15
+	local spot = AimbotConfig.TargetSpot
+	local chosenPart = nil
+	local pos = nil
+
+	if spot == "Cabeça" then
+		chosenPart = head or root
+		pos = chosenPart and chosenPart.Position
+	elseif spot == "Pescoço" then
+		if isR15 then
+			local ut = character:FindFirstChild("UpperTorso")
+			chosenPart = ut or head or root
+			if head and ut then pos = head.Position:Lerp(ut.Position, 0.55)
+			elseif head then pos = head.Position - Vector3.new(0, 0.7, 0)
+			elseif root then pos = root.Position end
+		else
+			local t = character:FindFirstChild("Torso")
+			chosenPart = t or head or root
+			if head and t then pos = head.Position:Lerp(t.Position, 0.45)
+			elseif head then pos = head.Position - Vector3.new(0, 0.7, 0)
+			elseif root then pos = root.Position end
+		end
+	elseif spot == "Torso" then
+		chosenPart = (isR15 and (character:FindFirstChild("UpperTorso") or character:FindFirstChild("LowerTorso")) or character:FindFirstChild("Torso")) or root
+		pos = chosenPart and chosenPart.Position
+	elseif spot == "Perna" then
+		local list = isR15 and { "RightLowerLeg", "RightUpperLeg", "LeftLowerLeg", "LeftUpperLeg" } or { "Right Leg", "Left Leg" }
+		for _, n in ipairs(list) do
+			local p = character:FindFirstChild(n)
+			if p then chosenPart = p; pos = p.Position; break end
+		end
+		if not pos and root then chosenPart = root; pos = root.Position - Vector3.new(0, 2, 0) end
+	elseif spot == "Braços" then
+		local list = isR15 and { "RightUpperArm", "RightLowerArm", "LeftUpperArm", "LeftLowerArm" } or { "Right Arm", "Left Arm" }
+		for _, n in ipairs(list) do
+			local p = character:FindFirstChild(n)
+			if p then chosenPart = p; pos = p.Position; break end
+		end
+		if not pos and root then chosenPart = root; pos = root.Position end
+	end
+
+	if pos and chosenPart and AimbotConfig.Prediction > 0 then
+		local vel = chosenPart.AssemblyLinearVelocity or Vector3.zero
+		pos = pos + (vel * AimbotConfig.Prediction)
+	end
+
+	return pos, chosenPart
+end
+
+local currentLockedPlayer = nil
+
+local function getClosestTarget(screenCenter, effectiveFOVRadius)
+	local bestPlayer = nil
+	local bestPos = nil
+	local bestMetric = math.huge
+
+	local function evaluatePlayer(player)
+		if player == LocalPlayer or isSameTeam(player, AimbotConfig.TeamCheck) then return end
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local anchor = character and (character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head"))
+		if not (character and humanoid and anchor and humanoid.Health > 0) then return end
+
+		local aimPos, aimPart = getAimTargetData(character, humanoid)
+		if not (aimPos and aimPart) then return end
+
+		local dist = (Camera.CFrame.Position - aimPos).Magnitude
+		if dist > AimbotConfig.MaxDistance then return end
+		if not hasLineOfSight(Camera.CFrame.Position, aimPart, character) then return end
+
+		local screenPos, onScreen = Camera:WorldToViewportPoint(aimPos)
+		if not onScreen then return end
+
+		local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+		if AimbotConfig.FOVEnabled and screenDist > effectiveFOVRadius then return end
+
+		local metric = (AimbotConfig.Priority == "Distancia") and dist or screenDist
+		if metric < bestMetric then
+			bestMetric = metric
+			bestPlayer = player
+			bestPos = aimPos
+		end
+	end
+
+	if AimbotConfig.StickyTarget and currentLockedPlayer and currentLockedPlayer.Parent == Players then
+		evaluatePlayer(currentLockedPlayer)
+		if bestPlayer == currentLockedPlayer and bestPos then
+			return bestPos, bestPlayer
+		end
+	end
+
+	bestPlayer = nil
+	bestPos = nil
+	bestMetric = math.huge
+	for _, plr in ipairs(Players:GetPlayers()) do
+		evaluatePlayer(plr)
+	end
+
+	currentLockedPlayer = bestPlayer
+	return bestPos, bestPlayer
+end
+
+for _, plr in ipairs(Players:GetPlayers()) do createESP(plr) end
+Players.PlayerAdded:Connect(createESP)
+Players.PlayerRemoving:Connect(removeESP)
+
+-- ==========================================
+-- LOOP DE MOVIMENTO, ANTI-AFK & POPUPS
+-- ==========================================
+UserInputService.JumpRequest:Connect(function()
+	if MoveConfig.InfiniteJump then
+		local hum = getHumanoid()
+		if hum then
+			pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+		end
+	end
+end)
+
+pcall(function()
+	LocalPlayer.Idled:Connect(function()
+		if MoveConfig.AntiAFK then
+			pcall(function()
+				local vu = game:GetService("VirtualUser")
+				vu:CaptureController()
+				vu:ClickButton2(Vector2.new())
+			end)
+		end
+	end)
+end)
+
+local popupTimer = 0
+
+RunService.Stepped:Connect(function(_, dt)
+	local char = LocalPlayer.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+
+	if MoveConfig.NoClip and char then
+		for _, part in ipairs(char:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CanCollide = false
+			end
+		end
+	end
+
+	if hum then
+		if MoveConfig.WalkSpeedEnabled and (MoveConfig.WalkSpeedLoop or hum.WalkSpeed ~= MoveConfig.WalkSpeed) then
+			pcall(function() hum.WalkSpeed = MoveConfig.WalkSpeed end)
+		end
+		if MoveConfig.JumpPowerEnabled then
+			pcall(function()
+				if hum.UseJumpPower then
+					hum.JumpPower = MoveConfig.JumpPower
+				else
+					hum.JumpHeight = MoveConfig.JumpPower * 0.25
+				end
+			end)
+		end
+		if MoveConfig.AntiRagdoll then
+			pcall(function()
+				hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+				hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+			end)
+		end
+		if MoveConfig.AutoSprint and hum.MoveDirection.Magnitude > 0 and not MoveConfig.WalkSpeedEnabled then
+			pcall(function() hum.WalkSpeed = math.max(hum.WalkSpeed, 22) end)
+		end
+	end
+
+	if MoveConfig.Spinbot and root then
+		pcall(function()
+			root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(MoveConfig.SpinSpeed), 0)
+		end)
+	end
+
+	if MoveConfig.Shiftlock and root and workspace.CurrentCamera then
+		pcall(function()
+			local look = workspace.CurrentCamera.CFrame.LookVector
+			local flatLook = Vector3.new(look.X, 0, look.Z)
+			if flatLook.Magnitude > 0.01 then
+				root.CFrame = CFrame.lookAt(root.Position, root.Position + flatLook)
+			end
+		end)
+	end
+
+	if MoveConfig.FlyEnabled and root and workspace.CurrentCamera then
+		pcall(function()
+			local humMove = hum and hum.MoveDirection or Vector3.zero
+			local camCF = workspace.CurrentCamera.CFrame
+			local moveVec = Vector3.zero
+			if humMove.Magnitude > 0 then
+				moveVec = (camCF.LookVector * humMove.Z * -1 + camCF.RightVector * humMove.X)
+				if moveVec.Magnitude > 0.01 then
+					moveVec = moveVec.Unit * MoveConfig.FlySpeed * (1 / 60)
+				end
+			end
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.CFrame = CFrame.new(root.Position + moveVec) * root.CFrame.Rotation
+		end)
+	end
+
+	if WorldConfig.AutoSkipPopups then
+		popupTimer = popupTimer + (dt or 0)
+		if popupTimer >= 1.5 then
+			popupTimer = 0
+			pcall(function()
+				local pg = LocalPlayer:FindFirstChild("PlayerGui")
+				if pg then
+					for _, gui in ipairs(pg:GetChildren()) do
+						if gui.Name ~= "RYKO_HUB_FPS_Overlay" and gui.Name ~= "RYKO_HUB_Aimbot_Button" then
+							for _, btn in ipairs(gui:GetDescendants()) do
+								if btn:IsA("TextButton") and btn.Visible then
+									local txt = string.lower(btn.Text)
+									if txt == "x" or txt == "close" or txt == "fechar" or txt == "ok" then
+										pcall(function() btn:Activate() end)
+									end
+								end
+							end
+						end
+					end
+				end
+			end)
+		end
+	end
+end)
+
+task.spawn(function()
+	while task.wait(6) do
+		pcall(refreshRegionInfo)
+		pcall(function()
+			StatusParagraph:SetDesc(string.format(
+				"Jogadores: %d | Ping: %d ms | FPS Cap: %d",
+				#Players:GetPlayers(),
+				getPingMs(),
+				FPSConfig.FPSCap
+			))
+		end)
+	end
+end)
+
+-- ==========================================
+-- LOOP PRINCIPAL DE RENDERIZAÇÃO (ESP + AIMBOT + FPS)
+-- ==========================================
+local fpsAccum = 0
+local frameCount = 0
+
+RunService.RenderStepped:Connect(function(deltaTime)
+	Camera = workspace.CurrentCamera
+	if not Camera then return end
+
+	if MoveConfig.CameraFOV ~= 70 then
+		pcall(function() Camera.FieldOfView = MoveConfig.CameraFOV end)
+	end
+
+	local viewportSize = Camera.ViewportSize
+	local screenCenter = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+	local lineOrigin = (ESPConfig.LineOrigin == "Em cima")
+		and Vector2.new(viewportSize.X / 2, 0)
+		or Vector2.new(viewportSize.X / 2, viewportSize.Y)
+
+	if FPSConfig.CounterVisible then
+		FPSFrame.Visible = true
+		fpsAccum = fpsAccum + deltaTime
+		frameCount = frameCount + 1
+		if fpsAccum >= 0.25 then
+			local fps = math.floor((frameCount / fpsAccum) + 0.5)
+			local ping = getPingMs()
+			local mem = getMemoryMB()
+
+			if FPSConfig.CompactCounter then
+				FPSLabel.Text = string.format("%d FPS | %dms", fps, ping)
+			else
+				local parts = { "FPS: " .. tostring(fps) }
+				if FPSConfig.ShowPing then
+					table.insert(parts, "Ping: " .. (ping > 0 and (tostring(ping) .. "ms") or "--ms"))
+				end
+				if FPSConfig.ShowMemory then
+					table.insert(parts, "RAM: " .. tostring(mem) .. "MB")
+				end
+				FPSLabel.Text = table.concat(parts, " | ")
+			end
+
+			if FPSConfig.DynamicColor then
+				if fps >= 55 and (ping == 0 or ping <= 120) then
+					FPSLabel.TextColor3 = Color3.fromRGB(90, 255, 140)
+				elseif fps >= 30 and (ping == 0 or ping <= 220) then
+					FPSLabel.TextColor3 = Color3.fromRGB(255, 220, 80)
+				else
+					FPSLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
+				end
+			else
+				FPSLabel.TextColor3 = Color3.fromRGB(240, 240, 255)
+			end
+
+			fpsAccum = 0
+			frameCount = 0
+		end
+	else
+		FPSFrame.Visible = false
+	end
+
+	local effectiveFOV = AimbotConfig.FOVRadius
+	if AimbotConfig.FOVDynamicZoom and Camera.FieldOfView > 0 then
+		effectiveFOV = AimbotConfig.FOVRadius * (70 / Camera.FieldOfView)
+	end
+
+	local aimPos, lockedPlr = nil, nil
+	if AimbotConfig.Enabled then
+		aimPos, lockedPlr = getClosestTarget(screenCenter, effectiveFOV)
+		if aimPos then
+			local desiredCF = CFrame.lookAt(Camera.CFrame.Position, aimPos)
+			Camera.CFrame = Camera.CFrame:Lerp(desiredCF, AimbotConfig.Smoothness)
+		end
+	end
+
+	local showFOV = AimbotConfig.FOVEnabled and (not AimbotConfig.FOVOnlyWhenAiming or AimbotConfig.Enabled)
+	if showFOV then
+		setProp(FOVCircle, "Position", screenCenter)
+		setProp(FOVCircle, "Radius", effectiveFOV)
+		setProp(FOVCircle, "Thickness", AimbotConfig.FOVThickness)
+		setProp(FOVCircle, "NumSides", AimbotConfig.FOVNumSides)
+		setProp(FOVCircle, "Color", AimbotConfig.FOVColor)
+		setProp(FOVCircle, "Visible", true)
+	else
+		setProp(FOVCircle, "Visible", false)
+	end
+
+	for player, data in pairs(ESPObjects) do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local head = character and character:FindFirstChild("Head")
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+		local aliveOk = not ESPConfig.OnlyAlive or (humanoid and humanoid.Health > 0)
+		local teamHidden = isSameTeam(player, ESPConfig.TeamCheck)
+
+		if not (ESPConfig.MasterEnabled and character and root and head and humanoid and aliveOk and not teamHidden) then
+			hideESP(data)
+		else
+			local distance = (Camera.CFrame.Position - root.Position).Magnitude
+			if distance > ESPConfig.MaxDistance then
+				hideESP(data)
+			else
+				local activeColor = ESPConfig.Color
+				if ESPConfig.TargetIndicator and lockedPlr == player then
+					activeColor = ESPConfig.TargetColor
+				elseif isFriendPlayer(player) then
+					activeColor = ESPConfig.FriendColor
+				end
+
+				if ESPConfig.Highlight then
+					if not data.Highlight then
+						local hl = Instance.new("Highlight")
+						hl.Name = "RYKO_ESP_HL"
+						hl.FillTransparency = 0.65
+						hl.OutlineTransparency = 0.1
+						hl.Adornee = character
+						hl.Parent = character
+						data.Highlight = hl
+					end
+					pcall(function()
+						data.Highlight.FillColor = activeColor
+						data.Highlight.OutlineColor = activeColor
+						data.Highlight.Enabled = true
+					end)
+				else
+					clearHighlight(data)
+				end
+
+				local rootPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+
+				if ESPConfig.OutOfFOVArrows and not onScreen then
+					local relPos = Camera.CFrame:PointToObjectSpace(root.Position)
+					local angle = math.atan2(relPos.Y, relPos.X)
+					local radius = math.min(viewportSize.X, viewportSize.Y) * 0.36
+					local tip = Vector2.new(screenCenter.X + math.cos(angle) * radius, screenCenter.Y - math.sin(angle) * radius)
+					local leftPt = Vector2.new(tip.X - math.cos(angle - 0.5) * 14, tip.Y + math.sin(angle - 0.5) * 14)
+					local rightPt = Vector2.new(tip.X - math.cos(angle + 0.5) * 14, tip.Y + math.sin(angle + 0.5) * 14)
+					setProp(data.Arrow, "PointA", tip)
+					setProp(data.Arrow, "PointB", leftPt)
+					setProp(data.Arrow, "PointC", rightPt)
+					setProp(data.Arrow, "Color", activeColor)
+					setProp(data.Arrow, "Visible", true)
+				else
+					setProp(data.Arrow, "Visible", false)
+				end
+
+				if not onScreen then
+					setProp(data.BoxOutline, "Visible", false)
+					setProp(data.Box2D, "Visible", false)
+					for _, l in ipairs(data.CornerLines) do setProp(l, "Visible", false) end
+					for _, l in ipairs(data.Box3DLines) do setProp(l, "Visible", false) end
+					setProp(data.Line, "Visible", false)
+					setProp(data.HealthOutline, "Visible", false)					setProp(data.HealthBar, "Visible", false)
+					setProp(data.InfoText, "Visible", false)
+					setProp(data.SubText, "Visible", false)
+					for _, b in ipairs(data.Skeleton) do setProp(b, "Visible", false) end
+				else
+					local topPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.6, 0))
+					local bottomPos = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
+					local boxH = math.max(math.abs(bottomPos.Y - topPos.Y), 8)
+					local boxW = boxH * 0.6
+					local boxX = rootPos.X - (boxW / 2)
+					local boxY = topPos.Y
+
+					if ESPConfig.Box2D then
+						setProp(data.BoxOutline, "Size", Vector2.new(boxW, boxH))
+						setProp(data.BoxOutline, "Position", Vector2.new(boxX, boxY))
+						setProp(data.BoxOutline, "Thickness", ESPConfig.Thickness + 1.5)
+						setProp(data.BoxOutline, "Visible", true)
+
+						setProp(data.Box2D, "Size", Vector2.new(boxW, boxH))
+						setProp(data.Box2D, "Position", Vector2.new(boxX, boxY))
+						setProp(data.Box2D, "Thickness", ESPConfig.Thickness)
+						setProp(data.Box2D, "Color", activeColor)
+						setProp(data.Box2D, "Visible", true)
+					else
+						setProp(data.BoxOutline, "Visible", false)
+						setProp(data.Box2D, "Visible", false)
+					end
+
+					if ESPConfig.CornerBox then
+						local cLen = math.min(boxW, boxH) * 0.25
+						local tl = Vector2.new(boxX, boxY)
+						local tr = Vector2.new(boxX + boxW, boxY)
+						local bl = Vector2.new(boxX, boxY + boxH)
+						local br = Vector2.new(boxX + boxW, boxY + boxH)
+						local segs = {
+							{ tl, tl + Vector2.new(cLen, 0) }, { tl, tl + Vector2.new(0, cLen) },
+							{ tr, tr - Vector2.new(cLen, 0) }, { tr, tr + Vector2.new(0, cLen) },
+							{ bl, bl + Vector2.new(cLen, 0) }, { bl, bl - Vector2.new(0, cLen) },
+							{ br, br - Vector2.new(cLen, 0) }, { br, br - Vector2.new(0, cLen) },
+						}
+						for i = 1, 8 do
+							setProp(data.CornerLines[i], "From", segs[i][1])
+							setProp(data.CornerLines[i], "To", segs[i][2])
+							setProp(data.CornerLines[i], "Thickness", ESPConfig.Thickness)
+							setProp(data.CornerLines[i], "Color", activeColor)
+							setProp(data.CornerLines[i], "Visible", true)
+						end
+					else
+						for i = 1, 8 do setProp(data.CornerLines[i], "Visible", false) end
+					end
+
+					if ESPConfig.Box3D then
+						local sx, sy, sz = 2.1, 2.8, 1.4
+						local cf = root.CFrame
+						local pts3D = {
+							cf * Vector3.new(-sx, sy, -sz), cf * Vector3.new(sx, sy, -sz),
+							cf * Vector3.new(sx, sy, sz), cf * Vector3.new(-sx, sy, sz),
+							cf * Vector3.new(-sx, -sy, -sz), cf * Vector3.new(sx, -sy, -sz),
+							cf * Vector3.new(sx, -sy, sz), cf * Vector3.new(-sx, -sy, sz),
+						}
+						local pts2D = {}
+						local allVis = true
+						for i = 1, 8 do
+							local sp, vis = Camera:WorldToViewportPoint(pts3D[i])
+							if not vis then allVis = false; break end
+							pts2D[i] = Vector2.new(sp.X, sp.Y)
+						end
+						if allVis then
+							local edges = {
+								{1,2},{2,3},{3,4},{4,1},
+								{5,6},{6,7},{7,8},{8,5},
+								{1,5},{2,6},{3,7},{4,8},
+							}
+							for i = 1, 12 do
+								local e = edges[i]
+								setProp(data.Box3DLines[i], "From", pts2D[e[1]])
+								setProp(data.Box3DLines[i], "To", pts2D[e[2]])
+								setProp(data.Box3DLines[i], "Thickness", ESPConfig.Thickness)
+								setProp(data.Box3DLines[i], "Color", activeColor)
+								setProp(data.Box3DLines[i], "Visible", true)
+							end
+						else
+							for i = 1, 12 do setProp(data.Box3DLines[i], "Visible", false) end
+						end
+					else
+						for i = 1, 12 do setProp(data.Box3DLines[i], "Visible", false) end
+					end
+
+					if ESPConfig.LineEnabled then
+						setProp(data.Line, "From", lineOrigin)
+						setProp(data.Line, "To", Vector2.new(rootPos.X, (ESPConfig.LineOrigin == "Em cima") and topPos.Y or bottomPos.Y))
+						setProp(data.Line, "Thickness", ESPConfig.Thickness)
+						setProp(data.Line, "Color", ESPConfig.LineColor)
+						setProp(data.Line, "Visible", true)
+					else
+						setProp(data.Line, "Visible", false)
+					end
+
+					if ESPConfig.HealthBar then
+						local ratio = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
+						local barX = boxX - 6
+						local curTop = (boxY + boxH) - (boxH * ratio)
+						setProp(data.HealthOutline, "From", Vector2.new(barX, boxY - 1))
+						setProp(data.HealthOutline, "To", Vector2.new(barX, boxY + boxH + 1))
+						setProp(data.HealthOutline, "Visible", true)
+						setProp(data.HealthBar, "From", Vector2.new(barX, curTop))
+						setProp(data.HealthBar, "To", Vector2.new(barX, boxY + boxH))
+						setProp(data.HealthBar, "Color", Color3.fromRGB(255 * (1 - ratio), 255 * ratio, 60))
+						setProp(data.HealthBar, "Visible", true)
+					else
+						setProp(data.HealthOutline, "Visible", false)
+						setProp(data.HealthBar, "Visible", false)
+					end
+
+					local topParts = {}
+					if ESPConfig.Name then
+						table.insert(topParts, ESPConfig.UseDisplayName and player.DisplayName or player.Name)
+					end
+					if ESPConfig.Distance then
+						table.insert(topParts, tostring(math.floor(distance)) .. "m")
+					end
+					if ESPConfig.HealthText then
+						table.insert(topParts, tostring(math.floor(humanoid.Health)) .. "/" .. tostring(math.floor(humanoid.MaxHealth)))
+					end
+					if #topParts > 0 then
+						setProp(data.InfoText, "Text", table.concat(topParts, " • "))
+						setProp(data.InfoText, "Size", ESPConfig.TextSize)
+						setProp(data.InfoText, "Position", Vector2.new(rootPos.X, boxY - (ESPConfig.TextSize + 4)))
+						setProp(data.InfoText, "Color", activeColor)
+						setProp(data.InfoText, "Visible", true)
+					else
+						setProp(data.InfoText, "Visible", false)
+					end
+
+					if ESPConfig.Tool then
+						local tool = character:FindFirstChildOfClass("Tool")
+						local toolName = tool and tool.Name or "Sem Item"
+						setProp(data.SubText, "Text", "[" .. toolName .. "]")
+						setProp(data.SubText, "Size", math.max(ESPConfig.TextSize - 1, 10))
+						setProp(data.SubText, "Position", Vector2.new(rootPos.X, boxY + boxH + 4))
+						setProp(data.SubText, "Visible", true)
+					else
+						setProp(data.SubText, "Visible", false)
+					end
+
+					if ESPConfig.Skeleton then
+						local bones = (humanoid.RigType == Enum.HumanoidRigType.R15) and R15Bones or R6Bones
+						for i = 1, #data.Skeleton do
+							local line = data.Skeleton[i]
+							local pair = bones[i]
+							if pair then
+								local pA = character:FindFirstChild(pair[1])
+								local pB = character:FindFirstChild(pair[2])
+								if pA and pB then
+									local sA, vA = Camera:WorldToViewportPoint(pA.Position)
+									local sB, vB = Camera:WorldToViewportPoint(pB.Position)
+									if vA and vB then
+										setProp(line, "From", Vector2.new(sA.X, sA.Y))
+										setProp(line, "To", Vector2.new(sB.X, sB.Y))
+										setProp(line, "Thickness", ESPConfig.Thickness)
+										setProp(line, "Color", activeColor)
+										setProp(line, "Visible", true)
+									else
+										setProp(line, "Visible", false)
+									end
+								else
+									setProp(line, "Visible", false)
+								end
+							else
+								setProp(line, "Visible", false)
+							end
+						end
+					else
+						for _, b in ipairs(data.Skeleton) do setProp(b, "Visible", false) end
+					end
+				end
+			end
+		end
+	end
+end)
